@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth";
 
 export async function POST() {
-  const res = NextResponse.json({ ok: true });
+  const store = await cookies();
 
-  // ✅ Clear cookie via response
-  res.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
+  // Prefer delete if available (Next supports it)
+  store.delete(SESSION_COOKIE_NAME);
+
+  // Extra safety: also set expired cookie (covers edge cases / older runtimes)
+  store.set(SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
+    expires: new Date(0),
     maxAge: 0,
   });
 
-  return res;
+  return NextResponse.json({ ok: true });
 }
