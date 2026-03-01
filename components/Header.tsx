@@ -1,6 +1,8 @@
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import { getSessionUser } from "@/lib/auth";
+import Image from "next/image";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -11,7 +13,13 @@ export default async function Header() {
     <header className="w-full bg-blue-900">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-6">
         <Link href="/" className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded bg-white/20" />
+          <Image
+            src="/dominion-logo.svg"
+            alt="Dominion Logo"
+            width={40}
+            height={40}
+            className="h-10 w-10 object-contain"
+          />
           <span className="text-3xl font-extrabold tracking-tight text-white">
             PolePadAI
           </span>
