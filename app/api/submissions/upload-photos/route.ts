@@ -1,27 +1,16 @@
-// app/api/submissions/upload-photos/route.ts
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 
 export const maxDuration = 60;
-
-// App Router: disable body size limit for file uploads
 export const dynamic = "force-dynamic";
-
-// This tells Next.js not to parse/limit the request body
-export const fetchCache = "force-no-store";
 
 export async function POST(req: Request) {
   try {
     const session = await getSessionUser();
-    if (!session) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return NextResponse.json(
-        { ok: false, error: "BLOB_READ_WRITE_TOKEN is not configured." },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "BLOB_READ_WRITE_TOKEN is not configured." }, { status: 500 });
     }
 
     const { put } = await import("@vercel/blob");
@@ -34,10 +23,7 @@ export async function POST(req: Request) {
         if (!(file instanceof File) || file.size === 0) continue;
         const ext = file.name.split(".").pop() ?? "jpg";
         const filename = `submissions/${session.username}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${category}.${ext}`;
-        const blob = await put(filename, file, {
-          access: "public",
-          contentType: file.type || "image/jpeg",
-        });
+        const blob = await put(filename, file, { access: "public", contentType: file.type || "image/jpeg" });
         urls[category].push(blob.url);
       }
     }
@@ -49,7 +35,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
-
-
-
-

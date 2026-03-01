@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type SubmissionFlag = "processing" | "vegetation" | "mismatch" | "review";
+type SubmissionFlag = "processing" | "vegetation" | "review";
 
 type Submission = {
   id: string;
@@ -16,7 +16,6 @@ type Submission = {
   baseNotes: string;
   vegetationEncroachment: boolean;
   flags: SubmissionFlag[];
-  aiConfidence: number;
   photoUrls: { tag: string[]; overview: string[]; base: string[]; pad: string[] };
 };
 
@@ -29,9 +28,8 @@ const CONDITION_COLORS: Record<string, string> = {
 };
 
 const FLAG_META: Record<SubmissionFlag, { label: string; color: string; emoji: string }> = {
-  processing: { label: "Processing",  color: "bg-gray-100 text-gray-700 ring-gray-200",      emoji: "⏳" },
-  vegetation: { label: "Vegetation",  color: "bg-green-100 text-green-800 ring-green-300",   emoji: "🌿" },
-  mismatch:   { label: "AI Mismatch", color: "bg-orange-100 text-orange-800 ring-orange-300", emoji: "⚠" },
+  processing: { label: "Processing",  color: "bg-gray-100 text-gray-700 ring-gray-200",       emoji: "⏳" },
+  vegetation: { label: "Vegetation",  color: "bg-green-100 text-green-800 ring-green-300",    emoji: "🌿" },
   review:     { label: "Review",      color: "bg-purple-100 text-purple-800 ring-purple-300", emoji: "🔍" },
 };
 
@@ -42,18 +40,11 @@ function ConditionBadge({ value }: { value: string }) {
 
 function FlagBadge({ flag }: { flag: SubmissionFlag }) {
   const m = FLAG_META[flag];
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${m.color}`}>
-      {m.emoji} {m.label}
-    </span>
-  );
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${m.color}`}>{m.emoji} {m.label}</span>;
 }
 
 function formatDate(ms: number) {
-  return new Date(ms).toLocaleString(undefined, {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export default function DatabasePage() {
@@ -78,24 +69,18 @@ export default function DatabasePage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  const filtered = filterFlag === "all"
-    ? submissions
-    : submissions.filter((s) => s.flags?.includes(filterFlag));
+  const filtered = filterFlag === "all" ? submissions : submissions.filter((s) => s.flags?.includes(filterFlag));
 
-  const allPhotos = selected
-    ? [
-        ...( selected.photoUrls?.tag ?? []).map((u) => ({ url: u, cat: "Tag" })),
-        ...(selected.photoUrls?.overview ?? []).map((u) => ({ url: u, cat: "Overview" })),
-        ...(selected.photoUrls?.base ?? []).map((u) => ({ url: u, cat: "Base" })),
-        ...(selected.photoUrls?.pad ?? []).map((u) => ({ url: u, cat: "Pad" })),
-      ]
-    : [];
+  const allPhotos = selected ? [
+    ...(selected.photoUrls?.tag ?? []).map((u) => ({ url: u, cat: "Tag" })),
+    ...(selected.photoUrls?.overview ?? []).map((u) => ({ url: u, cat: "Overview" })),
+    ...(selected.photoUrls?.base ?? []).map((u) => ({ url: u, cat: "Base" })),
+    ...(selected.photoUrls?.pad ?? []).map((u) => ({ url: u, cat: "Pad" })),
+  ] : [];
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
       <div className="rounded-3xl bg-white p-10 shadow-lg">
-
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">Submission Database</h1>
@@ -106,32 +91,19 @@ export default function DatabasePage() {
           </span>
         </div>
 
-        {/* Flag filter */}
         <div className="mt-6 flex flex-wrap gap-2">
-          {(["all", "mismatch", "vegetation", "review", "processing"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilterFlag(f)}
+          {(["all", "vegetation", "review", "processing"] as const).map((f) => (
+            <button key={f} onClick={() => setFilterFlag(f)}
               className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all ${
-                filterFlag === f
-                  ? "bg-blue-600 text-white ring-blue-600"
-                  : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
-              }`}
-            >
+                filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
+              }`}>
               {f === "all" ? "All" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
             </button>
           ))}
         </div>
 
-        {loading && (
-          <div className="mt-12 flex justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>
-        )}
+        {loading && <div className="mt-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>}
+        {error && <div className="mt-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>}
 
         {!loading && !error && filtered.length === 0 && (
           <div className="mt-16 text-center">
@@ -140,7 +112,6 @@ export default function DatabasePage() {
           </div>
         )}
 
-        {/* Table */}
         {!loading && filtered.length > 0 && (
           <div className="mt-8 overflow-x-auto rounded-2xl ring-1 ring-blue-100">
             <table className="w-full text-left text-sm">
@@ -165,23 +136,16 @@ export default function DatabasePage() {
                     <td className="px-5 py-3"><ConditionBadge value={s.poleCondition} /></td>
                     <td className="px-5 py-3"><ConditionBadge value={s.padCondition} /></td>
                     <td className="px-5 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        s.vegetationEncroachment ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"
-                      }`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${s.vegetationEncroachment ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}>
                         {s.vegetationEncroachment ? "Yes" : "No"}
                       </span>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {(s.flags ?? []).length === 0
-                          ? <span className="text-blue-300 text-xs">—</span>
-                          : (s.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)
-                        }
+                        {(s.flags ?? []).length === 0 ? <span className="text-blue-300 text-xs">—</span> : (s.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}
                       </div>
                     </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs font-semibold text-blue-500 hover:underline">View →</span>
-                    </td>
+                    <td className="px-5 py-3"><span className="text-xs font-semibold text-blue-500 hover:underline">View →</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -190,11 +154,9 @@ export default function DatabasePage() {
         )}
       </div>
 
-      {/* Detail modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-blue-950">Tag #{selected.tagNumber || "—"}</h2>
@@ -203,40 +165,23 @@ export default function DatabasePage() {
               <button onClick={() => setSelected(null)} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100">✕</button>
             </div>
 
-            {/* Flags */}
             {(selected.flags ?? []).length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {(selected.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}
-              </div>
+              <div className="mt-4 flex flex-wrap gap-2">{(selected.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}</div>
             )}
 
-            <div className="mt-6 grid grid-cols-2 gap-4">
+            <div className="mt-6 grid grid-cols-3 gap-4">
               <Detail label="Pole Condition"><ConditionBadge value={selected.poleCondition} /></Detail>
               <Detail label="Pad Condition"><ConditionBadge value={selected.padCondition} /></Detail>
-              <Detail label="Vegetation Encroachment">
+              <Detail label="Vegetation">
                 <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
                   {selected.vegetationEncroachment ? "Yes" : "No"}
                 </span>
               </Detail>
-              <Detail label="AI Confidence">
-                <span className="font-bold text-blue-950">{selected.aiConfidence ?? "—"}%</span>
-              </Detail>
             </div>
 
-            {selected.overviewNotes && (
-              <div className="mt-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p>
-                <p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p>
-              </div>
-            )}
-            {selected.baseNotes && (
-              <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p>
-                <p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p>
-              </div>
-            )}
+            {selected.overviewNotes && <div className="mt-5"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p><p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p></div>}
+            {selected.baseNotes && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p><p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p></div>}
 
-            {/* Photos */}
             {allPhotos.length > 0 && (
               <div className="mt-6">
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">Photos</p>
@@ -253,17 +198,14 @@ export default function DatabasePage() {
             )}
 
             {allPhotos.length === 0 && (
-              <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission.</p>
+              <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission. Photos are saved for submissions made after the latest update.</p>
             )}
 
-            <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">
-              Close
-            </button>
+            <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
           </div>
         </div>
       )}
 
-      {/* Lightbox */}
       {lightbox && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -3,28 +3,19 @@ import { Redis } from "@upstash/redis";
 
 const redis = Redis.fromEnv();
 
-export type SubmissionFlag = "processing" | "vegetation" | "mismatch" | "review";
+export type SubmissionFlag = "processing" | "vegetation" | "review";
 
 export type Submission = {
   id: string;
-  createdAt: number; // unix ms
+  createdAt: number;
   submittedBy: string;
-
-  // AI-extracted fields
   tagNumber: string;
   poleCondition: string;
   padCondition: string;
   overviewNotes: string;
   baseNotes: string;
   vegetationEncroachment: boolean;
-
-  // Flags (multiple allowed)
   flags: SubmissionFlag[];
-
-  // Internal AI confidence (used to auto-set mismatch flag, not displayed)
-  aiConfidence: number;
-
-  // Photo URLs stored in Vercel Blob
   photoUrls: {
     tag: string[];
     overview: string[];
@@ -43,20 +34,13 @@ export async function saveSubmission(submission: Submission): Promise<void> {
 export async function listSubmissions(): Promise<Submission[]> {
   const ids = await redis.zrange(INDEX_KEY, 0, -1, { rev: true });
   if (!ids || ids.length === 0) return [];
-
-  const results = await Promise.all(
-    ids.map((id) => redis.get<string>(`submission:${id}`))
-  );
-
+  const results = await Promise.all(ids.map((id) => redis.get<string>(`submission:${id}`)));
   return results
     .filter((s): s is string => s !== null)
     .map((s) => (typeof s === "string" ? JSON.parse(s) : s) as Submission);
 }
 
-export async function updateSubmissionFlags(
-  id: string,
-  flags: SubmissionFlag[]
-): Promise<void> {
+export async function updateSubmissionFlags(id: string, flags: SubmissionFlag[]): Promise<void> {
   const raw = await redis.get<string>(`submission:${id}`);
   if (!raw) throw new Error("Submission not found");
   const submission: Submission = typeof raw === "string" ? JSON.parse(raw) : raw;
