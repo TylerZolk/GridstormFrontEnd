@@ -1,3 +1,4 @@
+// app/api/admin/add-user/route.ts
 import { NextResponse } from "next/server";
 import { addUser } from "@/lib/users";
 import { getSessionUser } from "@/lib/auth";
@@ -12,9 +13,10 @@ export async function POST(req: Request) {
   const { username, password } = await req.json();
 
   try {
-    addUser(username, password);
+    await addUser(username, password); // ← was missing await
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 400 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Failed to create user";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }

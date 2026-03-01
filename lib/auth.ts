@@ -47,7 +47,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const payload = Buffer.from(b64, "base64url").toString("utf8");
   const expected = hmac(payload, secret);
 
-  // ✅ FIX: Constant-time comparison to prevent timing attacks
+ 
   if (expected.length !== sig.length) return null;
   let mismatch = 0;
   for (let i = 0; i < expected.length; i++) {

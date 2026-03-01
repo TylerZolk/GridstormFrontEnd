@@ -1,111 +1,97 @@
 // lib/users.ts
 import "server-only";
-import path from "path";
-import { promises as fs } from "fs";
+import { Redis } from "@upstash/redis";
 import bcrypt from "bcryptjs";
 import type { UserRecord } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
+const redis = Redis.fromEnv();
 
-// The seed admin record. Password must be a bcrypt hash.
-// Run `node scripts/create-admin-hash.mjs` to generate one.
-// Never commit a plaintext password here.
-const ADMIN_SEED: UserRecord = {
-  username: "Admin",
-  password: process.env.ADMIN_PASSWORD_HASH || "",
-  role: "admin",
-  isProtected: true,
-};
+// Redis keys
+const USERS_INDEX_KEY = "users:index";          // set of usernames
+const userKey = (u: string) => `user:${u}`;     // hash per user
 
-async function fileExists(p: string) {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// The protected admin account — seeded from env, never stored with plaintext password
+const ADMIN_USERNAME = "Admin";
 
-async function ensureStorage() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+// ── Internal helpers ──────────────────────────────────────────────────────────
 
-  const exists = await fileExists(USERS_FILE);
+async function ensureAdminExists(): Promise<void> {
+  const hash = process.env.ADMIN_PASSWORD_HASH;
+  if (!hash) throw new Error("ADMIN_PASSWORD_HASH env var is not set.");
+
+  const exists = await redis.sismember(USERS_INDEX_KEY, ADMIN_USERNAME);
   if (!exists) {
-    if (!ADMIN_SEED.password) {
-      throw new Error("ADMIN_PASSWORD_HASH env var is not set. Cannot seed users file.");
-    }
-    await fs.writeFile(USERS_FILE, JSON.stringify([ADMIN_SEED], null, 2), "utf8");
+    const admin: UserRecord = {
+      username: ADMIN_USERNAME,
+      password: hash,
+      role: "admin",
+      isProtected: true,
+    };
+    await redis.set(userKey(ADMIN_USERNAME), JSON.stringify(admin));
+    await redis.sadd(USERS_INDEX_KEY, ADMIN_USERNAME);
   }
 }
 
-async function readUsersUnsafe(): Promise<UserRecord[]> {
-  const raw = await fs.readFile(USERS_FILE, "utf8");
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? (parsed as UserRecord[]) : [];
+async function readUser(username: string): Promise<UserRecord | null> {
+  const raw = await redis.get<string>(userKey(username));
+  if (!raw) return null;
+  return typeof raw === "string" ? JSON.parse(raw) : raw as UserRecord;
 }
 
-async function writeUsers(users: UserRecord[]) {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
-}
-
-async function readUsers(): Promise<UserRecord[]> {
-  await ensureStorage();
-
-  const users = await readUsersUnsafe();
-
-  const hasAdmin = users.some((u) => u.username === ADMIN_SEED.username);
-  if (!hasAdmin) {
-    if (!ADMIN_SEED.password) {
-      throw new Error("ADMIN_PASSWORD_HASH env var is not set. Cannot re-seed admin user.");
-    }
-    const next = [...users, ADMIN_SEED];
-    await writeUsers(next);
-    return next;
-  }
-
-  return users;
-}
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export async function getUser(username: string): Promise<UserRecord | undefined> {
-  const users = await readUsers();
-  return users.find((u) => u.username === username);
+  await ensureAdminExists();
+  const user = await readUser(username);
+  return user ?? undefined;
 }
 
-// ✅ FIX: Hash password with bcrypt before storing
 export async function addUser(username: string, password: string): Promise<void> {
-  if (!username || !password) throw new Error("Missing username/password");
+  if (!username || !password) throw new Error("Missing username or password");
 
-  const users = await readUsers();
-  if (users.some((u) => u.username === username)) {
-    throw new Error("User already exists");
-  }
+  await ensureAdminExists();
+
+  const already = await redis.sismember(USERS_INDEX_KEY, username);
+  if (already) throw new Error("User already exists");
 
   const hashed = await bcrypt.hash(password, 10);
-  users.push({ username, password: hashed, role: "user" });
-  await writeUsers(users);
+  const record: UserRecord = { username, password: hashed, role: "user", isProtected: false };
+
+  await redis.set(userKey(username), JSON.stringify(record));
+  await redis.sadd(USERS_INDEX_KEY, username);
 }
 
 export async function listUsers(): Promise<Array<Pick<UserRecord, "username" | "role">>> {
-  const users = await readUsers();
-  return users.map((u) => ({ username: u.username, role: u.role }));
+  await ensureAdminExists();
+
+  const usernames = await redis.smembers(USERS_INDEX_KEY);
+  if (!usernames || usernames.length === 0) return [];
+
+  const records = await Promise.all(usernames.map(readUser));
+  return records
+    .filter((u): u is UserRecord => u !== null)
+    .map((u) => ({ username: u.username, role: u.role }))
+    .sort((a, b) => {
+      // Admin always first
+      if (a.username === ADMIN_USERNAME) return -1;
+      if (b.username === ADMIN_USERNAME) return 1;
+      return a.username.localeCompare(b.username);
+    });
 }
 
-// ✅ FIX: Use isProtected flag instead of hardcoded username string check
 export async function removeUser(username: string): Promise<void> {
   if (!username) throw new Error("Missing username");
 
-  const users = await readUsers();
-  const target = users.find((u) => u.username === username);
+  await ensureAdminExists();
 
-  if (!target) throw new Error("User not found");
-  if (target.isProtected) throw new Error("Cannot remove a protected user");
+  const user = await readUser(username);
+  if (!user) throw new Error("User not found");
+  if (user.isProtected) throw new Error("Cannot remove a protected user");
 
-  const next = users.filter((u) => u.username !== username);
-  await writeUsers(next);
+  await redis.del(userKey(username));
+  await redis.srem(USERS_INDEX_KEY, username);
 }
 
-// ✅ NEW: Exported helper used by the login route
 export async function verifyPassword(user: UserRecord, plaintext: string): Promise<boolean> {
   return bcrypt.compare(plaintext, user.password);
 }
