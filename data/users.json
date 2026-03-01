@@ -1,0 +1,13 @@
+[
+  {
+    "username": "Admin",
+    "password": "$2b$10$jRvCB3X1DeFuQrjoj95h/e5syag.TN2QbnEjR1hdQE2b2OaCUhwW2",
+    "role": "admin",
+    "isProtected": true
+  },
+  {
+    "username": "Wyatt",
+    "password": "$2b$10$mQmnvbYRO71hsAtwWh.OAOogOI7UzCBj1LrX/fcLx4EA5.LI1/40a",
+    "role": "user"
+  }
+]
