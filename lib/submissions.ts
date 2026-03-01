@@ -1,5 +1,7 @@
 // lib/submissions.ts
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
 
 export type Submission = {
   id: string;
@@ -22,20 +24,22 @@ export type Submission = {
 const INDEX_KEY = "submissions:index";
 
 export async function saveSubmission(submission: Submission): Promise<void> {
-  await kv.set(`submission:${submission.id}`, submission);
-  await kv.zadd(INDEX_KEY, { score: submission.createdAt, member: submission.id });
+  await redis.set(`submission:${submission.id}`, JSON.stringify(submission));
+  await redis.zadd(INDEX_KEY, { score: submission.createdAt, member: submission.id });
 }
 
 export async function listSubmissions(): Promise<Submission[]> {
   // newest first
-  const ids = await kv.zrange(INDEX_KEY, 0, -1, { rev: true });
+  const ids = await redis.zrange(INDEX_KEY, 0, -1, { rev: true });
   if (!ids || ids.length === 0) return [];
 
   const results = await Promise.all(
-    ids.map((id) => kv.get<Submission>(`submission:${id}`))
+    ids.map((id) => redis.get<string>(`submission:${id}`))
   );
 
-  return results.filter((s): s is Submission => s !== null);
+  return results
+    .filter((s): s is string => s !== null)
+    .map((s) => (typeof s === "string" ? JSON.parse(s) : s) as Submission);
 }
 
 
