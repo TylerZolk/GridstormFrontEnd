@@ -1,8 +1,11 @@
 // app/api/submissions/save/route.ts
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { saveSubmission, type Submission } from "@/lib/submissions";
+import { saveSubmission, type Submission, type SubmissionFlag } from "@/lib/submissions";
 import { randomUUID } from "crypto";
+
+// AI auto-flags as mismatch if confidence is below this threshold
+const MISMATCH_CONFIDENCE_THRESHOLD = 70;
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +19,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid body" }, { status: 400 });
     }
 
+    const aiConfidence: number = body.aiConfidence ?? 100;
+
+    // Build flags automatically
+    const flags: SubmissionFlag[] = [];
+    if (aiConfidence < MISMATCH_CONFIDENCE_THRESHOLD) flags.push("mismatch");
+    if (body.vegetationEncroachment === true) flags.push("vegetation");
+    // Inspector can also pass extra flags
+    if (Array.isArray(body.extraFlags)) {
+      for (const f of body.extraFlags as string[]) {
+        if (["review"].includes(f) && !flags.includes(f as SubmissionFlag)) {
+          flags.push(f as SubmissionFlag);
+        }
+      }
+    }
+
     const submission: Submission = {
       id: randomUUID(),
       createdAt: Date.now(),
@@ -25,12 +43,14 @@ export async function POST(req: Request) {
       padCondition: body.padCondition ?? "",
       overviewNotes: body.overviewNotes ?? "",
       baseNotes: body.baseNotes ?? "",
-      confidence: body.confidence ?? 0,
-      fileCounts: {
-        tag: body.fileCounts?.tag ?? 0,
-        overview: body.fileCounts?.overview ?? 0,
-        base: body.fileCounts?.base ?? 0,
-        pad: body.fileCounts?.pad ?? 0,
+      vegetationEncroachment: body.vegetationEncroachment ?? false,
+      flags,
+      aiConfidence,
+      photoUrls: {
+        tag: body.photoUrls?.tag ?? [],
+        overview: body.photoUrls?.overview ?? [],
+        base: body.photoUrls?.base ?? [],
+        pad: body.photoUrls?.pad ?? [],
       },
     };
 
@@ -43,3 +63,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
+

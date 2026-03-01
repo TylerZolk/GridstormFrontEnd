@@ -3,37 +3,46 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type PhotoUrls = { tag: string[]; overview: string[]; base: string[]; pad: string[] };
+
 type ReviewData = {
   tagNumber: string;
   poleCondition: string;
   padCondition: string;
   overviewNotes: string;
   baseNotes: string;
-  confidence: number;
-  fileCounts: {
-    tag: number;
-    overview: number;
-    base: number;
-    pad: number;
-  };
+  vegetationEncroachment: boolean;
+  aiConfidence: number;
+  // raw File objects stored temporarily (not in sessionStorage)
+  photoFiles?: { tag: File[]; overview: File[]; base: File[]; pad: File[] };
+  fileCounts: { tag: number; overview: number; base: number; pad: number };
 };
 
+type FlagKey = "review";
+
 const CONDITION_OPTIONS = ["Excellent", "Good", "Fair", "Poor", "Critical"];
+
+const FLAG_META: Record<FlagKey, { label: string; color: string; description: string }> = {
+  review: {
+    label: "Flag for Review",
+    color: "bg-purple-100 text-purple-800 ring-purple-300",
+    description: "Mark this submission for a supervisor to review",
+  },
+};
 
 export default function SubmissionReviewPage() {
   const router = useRouter();
   const [data, setData] = useState<ReviewData | null>(null);
   const [edited, setEdited] = useState<ReviewData | null>(null);
+  const [extraFlags, setExtraFlags] = useState<FlagKey[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<PhotoUrls>({ tag: [], overview: [], base: [], pad: [] });
 
   useEffect(() => {
     const raw = sessionStorage.getItem("submissionReview");
-    if (!raw) {
-      router.replace("/portal/submission");
-      return;
-    }
+    if (!raw) { router.replace("/portal/submission"); return; }
     const parsed = JSON.parse(raw) as ReviewData;
     setData(parsed);
     setEdited(parsed);
@@ -45,31 +54,64 @@ export default function SubmissionReviewPage() {
     setError(null);
   }
 
+  function toggleFlag(flag: FlagKey) {
+    setExtraFlags((prev) =>
+      prev.includes(flag) ? prev.filter((f) => f !== flag) : [...prev, flag]
+    );
+  }
+
+  async function uploadPhotos(): Promise<PhotoUrls> {
+    // If no photo files attached, return empty (photos were already lost / not stored)
+    const files = edited?.photoFiles;
+    if (!files) return { tag: [], overview: [], base: [], pad: [] };
+
+    const fd = new FormData();
+    for (const [cat, arr] of Object.entries(files)) {
+      for (const f of arr as File[]) fd.append(cat, f);
+    }
+
+    const res = await fetch("/api/submissions/upload-photos", { method: "POST", body: fd });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || "Photo upload failed");
+    return json.urls as PhotoUrls;
+  }
+
   async function handleConfirm() {
     if (!edited) return;
     setSaving(true);
     setError(null);
 
     try {
+      // 1. Upload photos first (if any files present)
+      const urls = await uploadPhotos();
+      setPhotoUrls(urls);
+
+      // 2. Save submission with photo URLs + flags
       const res = await fetch("/api/submissions/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(edited),
+        body: JSON.stringify({
+          tagNumber: edited.tagNumber,
+          poleCondition: edited.poleCondition,
+          padCondition: edited.padCondition,
+          overviewNotes: edited.overviewNotes,
+          baseNotes: edited.baseNotes,
+          vegetationEncroachment: edited.vegetationEncroachment,
+          aiConfidence: edited.aiConfidence,
+          extraFlags,
+          photoUrls: urls,
+        }),
       });
 
-      const result = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setError(result?.error || "Failed to save submission.");
-        setSaving(false);
-        return;
-      }
+      const json = await res.json().catch(() => null);
+      if (!res.ok) { setError(json?.error || "Failed to save submission."); return; }
 
       sessionStorage.removeItem("submissionReview");
       setSaved(true);
       setTimeout(() => router.push("/portal"), 1500);
-    } catch {
-      setError("Network error — please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
       setSaving(false);
     }
   }
@@ -77,14 +119,31 @@ export default function SubmissionReviewPage() {
   if (!edited) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="rounded-3xl bg-white p-10 shadow-lg text-blue-900">
-          Loading…
-        </div>
+        <div className="rounded-3xl bg-white p-10 shadow-lg text-blue-900">Loading…</div>
       </main>
     );
   }
 
-  const hasChanges = JSON.stringify(edited) !== JSON.stringify(data);
+  const hasChanges = JSON.stringify({
+    tagNumber: edited.tagNumber,
+    poleCondition: edited.poleCondition,
+    padCondition: edited.padCondition,
+    overviewNotes: edited.overviewNotes,
+    baseNotes: edited.baseNotes,
+    vegetationEncroachment: edited.vegetationEncroachment,
+  }) !== JSON.stringify({
+    tagNumber: data?.tagNumber,
+    poleCondition: data?.poleCondition,
+    padCondition: data?.padCondition,
+    overviewNotes: data?.overviewNotes,
+    baseNotes: data?.baseNotes,
+    vegetationEncroachment: data?.vegetationEncroachment,
+  });
+
+  // Auto-flags that will be set by the server (shown as preview)
+  const autoFlags: string[] = [];
+  if ((edited.aiConfidence ?? 100) < 70) autoFlags.push("mismatch");
+  if (edited.vegetationEncroachment) autoFlags.push("vegetation");
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -96,41 +155,37 @@ export default function SubmissionReviewPage() {
             <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">
               Submission Review
             </h1>
-            <p className="mt-2 text-blue-900/80">
+            <p className="mt-2 text-blue-900/70">
               Review and correct the AI's findings before confirming.
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-              AI Confidence
-            </span>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-32 overflow-hidden rounded-full bg-blue-100">
-                <div
-                  className="h-full rounded-full bg-blue-500 transition-all"
-                  style={{ width: `${edited.confidence}%` }}
-                />
-              </div>
-              <span className="text-lg font-bold text-blue-950">
-                {edited.confidence}%
+          {/* Flags preview */}
+          <div className="flex flex-wrap gap-2">
+            {autoFlags.includes("mismatch") && (
+              <FlagPill color="bg-orange-100 text-orange-800 ring-orange-300" label="⚠ AI Mismatch" />
+            )}
+            {autoFlags.includes("vegetation") && (
+              <FlagPill color="bg-green-100 text-green-800 ring-green-300" label="🌿 Vegetation" />
+            )}
+            {extraFlags.includes("review") && (
+              <FlagPill color="bg-purple-100 text-purple-800 ring-purple-300" label="🔍 Review" />
+            )}
+            {autoFlags.length === 0 && extraFlags.length === 0 && (
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-500 ring-1 ring-blue-100">
+                No flags
               </span>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* File count summary */}
+        {/* Photo count summary */}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Tag",      count: edited.fileCounts.tag      },
-            { label: "Overview", count: edited.fileCounts.overview  },
-            { label: "Base",     count: edited.fileCounts.base      },
-            { label: "Pad",      count: edited.fileCounts.pad       },
-          ].map(({ label, count }) => (
-            <div key={label} className="rounded-2xl bg-blue-50 px-5 py-4 text-center ring-1 ring-blue-100">
-              <p className="text-2xl font-extrabold text-blue-950">{count}</p>
-              <p className="mt-1 text-xs font-semibold text-blue-700">
-                {label} photo{count !== 1 ? "s" : ""}
+          {(["tag", "overview", "base", "pad"] as const).map((cat) => (
+            <div key={cat} className="rounded-2xl bg-blue-50 px-5 py-4 text-center ring-1 ring-blue-100">
+              <p className="text-2xl font-extrabold text-blue-950">{edited.fileCounts[cat]}</p>
+              <p className="mt-1 text-xs font-semibold capitalize text-blue-700">
+                {cat} photo{edited.fileCounts[cat] !== 1 ? "s" : ""}
               </p>
             </div>
           ))}
@@ -143,28 +198,40 @@ export default function SubmissionReviewPage() {
               type="text"
               value={edited.tagNumber}
               onChange={(e) => update("tagNumber", e.target.value)}
-              className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="input"
             />
           </Field>
 
           <Field label="Pole Condition" aiGenerated>
-            <select
-              value={edited.poleCondition}
-              onChange={(e) => update("poleCondition", e.target.value)}
-              className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            >
+            <select value={edited.poleCondition} onChange={(e) => update("poleCondition", e.target.value)} className="input">
               {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
             </select>
           </Field>
 
           <Field label="Pad-Mounted Equipment Condition" aiGenerated>
-            <select
-              value={edited.padCondition}
-              onChange={(e) => update("padCondition", e.target.value)}
-              className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            >
+            <select value={edited.padCondition} onChange={(e) => update("padCondition", e.target.value)} className="input">
               {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
             </select>
+          </Field>
+
+          <Field label="Vegetation Encroachment" aiGenerated>
+            <div className="flex gap-3">
+              {[true, false].map((val) => (
+                <button
+                  key={String(val)}
+                  onClick={() => update("vegetationEncroachment", val)}
+                  className={`flex-1 rounded-xl border py-3 text-sm font-bold transition-all ${
+                    edited.vegetationEncroachment === val
+                      ? val
+                        ? "border-green-400 bg-green-100 text-green-900"
+                        : "border-blue-400 bg-blue-100 text-blue-900"
+                      : "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
+                  }`}
+                >
+                  {val ? "Yes" : "No"}
+                </button>
+              ))}
+            </div>
           </Field>
 
           <Field label="Overview Notes" aiGenerated>
@@ -172,7 +239,7 @@ export default function SubmissionReviewPage() {
               rows={3}
               value={edited.overviewNotes}
               onChange={(e) => update("overviewNotes", e.target.value)}
-              className="w-full resize-none rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="input resize-none"
             />
           </Field>
 
@@ -181,9 +248,36 @@ export default function SubmissionReviewPage() {
               rows={3}
               value={edited.baseNotes}
               onChange={(e) => update("baseNotes", e.target.value)}
-              className="w-full resize-none rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="input resize-none"
             />
           </Field>
+        </div>
+
+        {/* Inspector flags */}
+        <div className="mt-10">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-500 mb-3">
+            Inspector Flags
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {(Object.entries(FLAG_META) as [FlagKey, typeof FLAG_META[FlagKey]][]).map(([key, meta]) => (
+              <button
+                key={key}
+                onClick={() => toggleFlag(key)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold ring-1 transition-all ${
+                  extraFlags.includes(key)
+                    ? meta.color + " ring-1"
+                    : "border-blue-200 bg-blue-50 text-blue-900 ring-blue-100 hover:bg-blue-100"
+                }`}
+              >
+                {extraFlags.includes(key) ? "✓ " : ""}{meta.label}
+              </button>
+            ))}
+          </div>
+          {extraFlags.includes("review") && (
+            <p className="mt-2 text-xs text-purple-600">
+              This submission will be queued for supervisor review.
+            </p>
+          )}
         </div>
 
         {hasChanges && (
@@ -210,25 +304,35 @@ export default function SubmissionReviewPage() {
           <button
             onClick={handleConfirm}
             disabled={saving || saved}
-            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
           >
             {saved ? "Saved! Redirecting…" : saving ? "Saving…" : "Confirm & Save →"}
           </button>
         </div>
       </div>
+
+      {/* Inline styles for input class */}
+      <style>{`
+        .input {
+          width: 100%;
+          border-radius: 0.75rem;
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
+          color: #172554;
+          outline: none;
+        }
+        .input:focus {
+          border-color: #60a5fa;
+          box-shadow: 0 0 0 2px #dbeafe;
+        }
+      `}</style>
     </main>
   );
 }
 
-function Field({
-  label,
-  aiGenerated,
-  children,
-}: {
-  label: string;
-  aiGenerated?: boolean;
-  children: React.ReactNode;
-}) {
+function Field({ label, aiGenerated, children }: { label: string; aiGenerated?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -241,5 +345,13 @@ function Field({
       </div>
       {children}
     </div>
+  );
+}
+
+function FlagPill({ label, color }: { label: string; color: string }) {
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${color}`}>
+      {label}
+    </span>
   );
 }

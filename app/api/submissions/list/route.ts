@@ -11,7 +11,6 @@ export async function GET() {
     }
 
     const submissions = await listSubmissions();
-
     return NextResponse.json({ ok: true, submissions });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -19,5 +18,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
+
 
 
