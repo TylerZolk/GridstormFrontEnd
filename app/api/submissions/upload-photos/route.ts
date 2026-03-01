@@ -2,7 +2,13 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 
-export const maxDuration = 60; // allow time for large photo uploads
+export const maxDuration = 60;
+
+// App Router: disable body size limit for file uploads
+export const dynamic = "force-dynamic";
+
+// This tells Next.js not to parse/limit the request body
+export const fetchCache = "force-no-store";
 
 export async function POST(req: Request) {
   try {
@@ -11,17 +17,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check token exists before trying to import the blob library
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
-        { ok: false, error: "BLOB_READ_WRITE_TOKEN is not configured. Please add a Vercel Blob store in your project." },
+        { ok: false, error: "BLOB_READ_WRITE_TOKEN is not configured." },
         { status: 500 }
       );
     }
 
-    // Dynamic import so a missing token doesn't crash at module load time
     const { put } = await import("@vercel/blob");
-
     const formData = await req.formData();
     const urls: Record<string, string[]> = { tag: [], overview: [], base: [], pad: [] };
 
@@ -46,3 +49,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
+
+
+
