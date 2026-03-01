@@ -24,7 +24,9 @@ export default function SubmissionReviewPage() {
   const router = useRouter();
   const [data, setData] = useState<ReviewData | null>(null);
   const [edited, setEdited] = useState<ReviewData | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("submissionReview");
@@ -38,14 +40,38 @@ export default function SubmissionReviewPage() {
   }, [router]);
 
   function update<K extends keyof ReviewData>(key: K, value: ReviewData[K]) {
-    setEdited((prev) => prev ? { ...prev, [key]: value } : prev);
+    setEdited((prev) => (prev ? { ...prev, [key]: value } : prev));
     setSaved(false);
+    setError(null);
   }
 
-  function handleConfirm() {
-    sessionStorage.removeItem("submissionReview");
-    setSaved(true);
-    setTimeout(() => router.push("/portal"), 1500);
+  async function handleConfirm() {
+    if (!edited) return;
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/submissions/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(edited),
+      });
+
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(result?.error || "Failed to save submission.");
+        setSaving(false);
+        return;
+      }
+
+      sessionStorage.removeItem("submissionReview");
+      setSaved(true);
+      setTimeout(() => router.push("/portal"), 1500);
+    } catch {
+      setError("Network error — please try again.");
+      setSaving(false);
+    }
   }
 
   if (!edited) {
@@ -166,20 +192,27 @@ export default function SubmissionReviewPage() {
           </p>
         )}
 
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="mt-10 flex flex-wrap gap-4">
           <button
             onClick={() => router.push("/portal/submission")}
-            className="rounded-xl bg-blue-50 px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-100 active:scale-[0.98]"
+            disabled={saving || saved}
+            className="rounded-xl bg-blue-50 px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-100 active:scale-[0.98] disabled:opacity-50"
           >
             ← Back
           </button>
           <button
             onClick={handleConfirm}
-            disabled={saved}
+            disabled={saving || saved}
             className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
           >
-            {saved ? "Saved! Redirecting…" : "Confirm & Save →"}
+            {saved ? "Saved! Redirecting…" : saving ? "Saving…" : "Confirm & Save →"}
           </button>
         </div>
       </div>
