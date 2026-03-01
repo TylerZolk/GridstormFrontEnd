@@ -59,16 +59,17 @@ export default function DatabasePage() {
 
   useEffect(() => {
     fetch("/api/submissions/list")
-      .then((r) => {
+      .then(async (r) => {
         if (r.status === 401) { router.push("/login"); return null; }
-        return r.json();
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+        return data;
       })
       .then((data) => {
         if (!data) return;
-        if (data.ok) setSubmissions(data.submissions);
-        else setError(data.error || "Failed to load submissions.");
+        setSubmissions(data.submissions ?? []);
       })
-      .catch(() => setError("Network error."))
+      .catch((err) => setError(err.message || "Failed to load submissions."))
       .finally(() => setLoading(false));
   }, [router]);
 
