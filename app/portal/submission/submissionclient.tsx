@@ -17,10 +17,20 @@ const SLOTS: UploadSlot[] = [
   { key: "pad",      title: "Pad Mounted Photos",   help: "Photos of pad-mounted equipment.", multiple: true  },
 ];
 
+type SubmitStage = "idle" | "uploading" | "analysing" | "done";
+
+const STAGE_LABEL: Record<SubmitStage, string> = {
+  idle:      "Submit & Review →",
+  uploading: "Uploading photos…",
+  analysing: "Analysing…",
+  done:      "Done!",
+};
+
 export default function SubmissionClient() {
   const router = useRouter();
   const [files, setFiles] = useState<Record<string, File[]>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState<SubmitStage>("idle");
+  const [error, setError] = useState<string | null>(null);
 
   function handleFiles(key: string, selected: FileList | null, multiple: boolean) {
     if (!selected) return;
@@ -39,30 +49,60 @@ export default function SubmissionClient() {
   }
 
   async function handleSubmit() {
-    setSubmitting(true);
+    setError(null);
 
-    const tagFile = files["tag"]?.[0];
+    try {
+      // ── Step 1: Upload photos to Vercel Blob ──────────────────────────────
+      setStage("uploading");
 
-    const mockResult = {
-      tagNumber:     tagFile ? "TAG-" + Math.floor(Math.random() * 90000 + 10000) : "UNKNOWN",
-      poleCondition: "Good",
-      padCondition:  "Fair",
-      overviewNotes: "No visible structural damage detected.",
-      baseNotes:     "Minor surface rust on lower 12 inches.",
-      confidence:    87,
-      fileCounts: {
-        tag:      (files["tag"]      ?? []).length,
-        overview: (files["overview"] ?? []).length,
-        base:     (files["base"]     ?? []).length,
-        pad:      (files["pad"]      ?? []).length,
-      },
-    };
+      const fd = new FormData();
+      for (const [cat, arr] of Object.entries(files)) {
+        for (const f of arr) fd.append(cat, f);
+      }
 
-    sessionStorage.setItem("submissionReview", JSON.stringify(mockResult));
-    router.push("/portal/submission/review");
+      const uploadRes = await fetch("/api/submissions/upload-photos", {
+        method: "POST",
+        body: fd,
+      });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadJson?.error || "Photo upload failed");
+
+      const photoUrls: Record<string, string[]> = uploadJson.urls;
+
+      // ── Step 2: "Analyse" (mock for now — swap in real AI call here) ──────
+      setStage("analysing");
+
+      const tagFile = files["tag"]?.[0];
+      const mockResult = {
+        tagNumber:              tagFile ? "TAG-" + Math.floor(Math.random() * 90000 + 10000) : "UNKNOWN",
+        poleCondition:          "Good",
+        padCondition:           "Fair",
+        overviewNotes:          "No visible structural damage detected.",
+        baseNotes:              "Minor surface rust on lower 12 inches.",
+        vegetationEncroachment: false,
+        aiConfidence:           87,
+        fileCounts: {
+          tag:      (files["tag"]      ?? []).length,
+          overview: (files["overview"] ?? []).length,
+          base:     (files["base"]     ?? []).length,
+          pad:      (files["pad"]      ?? []).length,
+        },
+        // ✅ Photo URLs are now stored and will be saved with the submission
+        photoUrls,
+      };
+
+      setStage("done");
+      sessionStorage.setItem("submissionReview", JSON.stringify(mockResult));
+      router.push("/portal/submission/review");
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setStage("idle");
+    }
   }
 
   const totalFiles = Object.values(files).flat().length;
+  const busy = stage !== "idle";
 
   return (
     <div className="mt-8 flex flex-col gap-8">
@@ -74,9 +114,16 @@ export default function SubmissionClient() {
             selectedFiles={files[slot.key] ?? []}
             onFiles={(f) => handleFiles(slot.key, f, slot.multiple)}
             onRemove={(i) => removeFile(slot.key, i)}
+            disabled={busy}
           />
         ))}
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-6 py-4 ring-1 ring-blue-200">
         <p className="text-sm text-blue-900">
@@ -84,12 +131,16 @@ export default function SubmissionClient() {
             ? "No files selected yet."
             : `${totalFiles} file${totalFiles !== 1 ? "s" : ""} ready to submit.`}
         </p>
+
         <button
           onClick={handleSubmit}
-          disabled={totalFiles === 0 || submitting}
+          disabled={totalFiles === 0 || busy}
           className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {submitting ? "Analysing…" : "Submit & Review →"}
+          {busy && (
+            <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+          )}
+          {STAGE_LABEL[stage]}
         </button>
       </div>
     </div>
@@ -101,11 +152,13 @@ function UploadCard({
   selectedFiles,
   onFiles,
   onRemove,
+  disabled,
 }: {
   slot: UploadSlot;
   selectedFiles: File[];
   onFiles: (f: FileList | null) => void;
   onRemove: (i: number) => void;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -120,8 +173,9 @@ function UploadCard({
           </label>
           <button
             type="button"
+            disabled={disabled}
             onClick={() => inputRef.current?.click()}
-            className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white px-5 py-2 text-sm font-bold text-blue-950 shadow-sm ring-1 ring-blue-200 transition hover:shadow-md hover:ring-blue-300 active:scale-[0.98]"
+            className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white px-5 py-2 text-sm font-bold text-blue-950 shadow-sm ring-1 ring-blue-200 transition hover:shadow-md hover:ring-blue-300 active:scale-[0.98] disabled:opacity-50"
           >
             Browse
           </button>
@@ -148,7 +202,8 @@ function UploadCard({
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   onClick={() => onRemove(i)}
-                  className="ml-3 text-xs font-semibold text-red-400 hover:text-red-600"
+                  disabled={disabled}
+                  className="ml-3 text-xs font-semibold text-red-400 hover:text-red-600 disabled:opacity-40"
                 >
                   Remove
                 </button>

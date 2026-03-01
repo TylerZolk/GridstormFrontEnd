@@ -13,9 +13,9 @@ type ReviewData = {
   baseNotes: string;
   vegetationEncroachment: boolean;
   aiConfidence: number;
-  // raw File objects stored temporarily (not in sessionStorage)
-  photoFiles?: { tag: File[]; overview: File[]; base: File[]; pad: File[] };
   fileCounts: { tag: number; overview: number; base: number; pad: number };
+  // Already-uploaded Blob URLs — set by SubmissionClient before navigation
+  photoUrls?: PhotoUrls;
 };
 
 type FlagKey = "review";
@@ -38,7 +38,6 @@ export default function SubmissionReviewPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [photoUrls, setPhotoUrls] = useState<PhotoUrls>({ tag: [], overview: [], base: [], pad: [] });
 
   useEffect(() => {
     const raw = sessionStorage.getItem("submissionReview");
@@ -60,33 +59,12 @@ export default function SubmissionReviewPage() {
     );
   }
 
-  async function uploadPhotos(): Promise<PhotoUrls> {
-    // If no photo files attached, return empty (photos were already lost / not stored)
-    const files = edited?.photoFiles;
-    if (!files) return { tag: [], overview: [], base: [], pad: [] };
-
-    const fd = new FormData();
-    for (const [cat, arr] of Object.entries(files)) {
-      for (const f of arr as File[]) fd.append(cat, f);
-    }
-
-    const res = await fetch("/api/submissions/upload-photos", { method: "POST", body: fd });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || "Photo upload failed");
-    return json.urls as PhotoUrls;
-  }
-
   async function handleConfirm() {
     if (!edited) return;
     setSaving(true);
     setError(null);
 
     try {
-      // 1. Upload photos first (if any files present)
-      const urls = await uploadPhotos();
-      setPhotoUrls(urls);
-
-      // 2. Save submission with photo URLs + flags
       const res = await fetch("/api/submissions/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,7 +77,8 @@ export default function SubmissionReviewPage() {
           vegetationEncroachment: edited.vegetationEncroachment,
           aiConfidence: edited.aiConfidence,
           extraFlags,
-          photoUrls: urls,
+          // Photos were already uploaded to Blob during submission — just pass URLs
+          photoUrls: edited.photoUrls ?? { tag: [], overview: [], base: [], pad: [] },
         }),
       });
 
