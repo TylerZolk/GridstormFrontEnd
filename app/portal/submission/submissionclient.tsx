@@ -40,27 +40,23 @@ function vegToCondition(pct: number): string {
 
 /** POST a single file to a PolePad AI endpoint, return parsed JSON */
 async function callPolePadEndpoint(
-  baseUrl: string,
+  _baseUrl: string,
   path: string,
   file: File
 ): Promise<Record<string, unknown>> {
   const fd = new FormData();
   fd.append("file", file);
 
-  const res = await fetch(`${baseUrl}${path}`, { method: "POST", body: fd });
+  // Route through Next.js proxy — avoids Cloudflare browser challenge
+  const proxyPath = "/api/polepad" + path;
+  const res = await fetch(proxyPath, { method: "POST", body: fd });
 
-  if (!res.ok) {
-    throw new Error(`PolePad backend error ${res.status} on ${path}`);
-  }
-
+  if (!res.ok) throw new Error(`PolePad proxy error ${res.status} on ${path}`);
   const json = await res.json();
-
-  if (json?.error) {
-    throw new Error(`PolePad returned error: ${json.error}`);
-  }
-
+  if (json?.error) throw new Error(`PolePad returned error: ${json.error}`);
   return json;
 }
+
 
 // ── component ─────────────────────────────────────────────────────────────────
 
