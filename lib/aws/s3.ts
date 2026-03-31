@@ -12,6 +12,9 @@ function makeClient() {
     credentials: {
       accessKeyId: process.env.AWS_APP_ACCESS_KEY_ID!,
       secretAccessKey: process.env.AWS_APP_SECRET_ACCESS_KEY!,
+      ...(process.env.AWS_APP_SESSION_TOKEN && {
+        sessionToken: process.env.AWS_APP_SESSION_TOKEN,
+      }),
     },
   });
 }
