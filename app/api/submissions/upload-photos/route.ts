@@ -6,6 +6,8 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = ["tag", "overview", "base", "pad"] as const;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export async function POST(req: Request) {
   try {
@@ -21,7 +23,20 @@ export async function POST(req: Request) {
       const files = formData.getAll(category) as File[];
       for (const file of files) {
         if (!(file instanceof File) || file.size === 0) continue;
-        const ext = file.name.split(".").pop() ?? "jpg";
+        if (file.size > MAX_FILE_SIZE) {
+          return NextResponse.json(
+            { ok: false, error: `File ${file.name} exceeds 10 MB limit` },
+            { status: 400 }
+          );
+        }
+        const contentType = file.type || "image/jpeg";
+        if (!ALLOWED_TYPES.has(contentType)) {
+          return NextResponse.json(
+            { ok: false, error: `File type ${contentType} is not allowed` },
+            { status: 400 }
+          );
+        }
+        const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
         const key = `submissions/${session.username}/${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 6)}-${category}.${ext}`;

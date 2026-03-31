@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { listSubmissions } from "@/lib/submissions";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getSessionUser();

@@ -3,6 +3,8 @@ import { getSessionUser } from "@/lib/auth";
 import { saveSubmission, type Submission, type SubmissionFlag } from "@/lib/submissions";
 import { randomUUID } from "crypto";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const session = await getSessionUser();

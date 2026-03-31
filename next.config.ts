@@ -1,24 +1,26 @@
 import type { NextConfig } from "next";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
+const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",
     },
   },
-  // Allow images from Vercel Blob to display in <img> tags
-  images: {
-    remotePatterns: [
+  async headers() {
+    return [
       {
-        protocol: "https",
-        hostname: "**.public.blob.vercel-storage.com",
+        source: "/(.*)",
+        headers: securityHeaders,
       },
-    ],
+    ];
   },
 };
 
-module.exports = nextConfig;
-
 export default nextConfig;
-

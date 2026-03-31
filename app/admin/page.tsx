@@ -1,14 +1,18 @@
-import RequireAuth from "@/components/RequireAuth";
 import { getSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import AdminCreateUser from "./parts/AdminCreateUser";
 import UserManagement from "./parts/UserManagement";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const session = await getSessionUser();
-  const isAdmin = session?.role === "admin";
+  if (!session) redirect("/login");
+  if (session.role !== "admin") redirect("/portal");
 
+  const isAdmin = true; // guaranteed by redirect above
   return (
-    <RequireAuth>
+    <div>
       <main className="bg-white">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="rounded-[26px] border-2 border-blue-600 bg-white p-10">
@@ -70,6 +74,6 @@ export default async function AdminPage() {
           </div>
         </div>
       </main>
-    </RequireAuth>
+    </div>
   );
 }

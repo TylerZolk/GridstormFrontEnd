@@ -41,6 +41,6 @@ export async function uploadAndSign(
   return getSignedUrl(
     getS3(),
     new GetObjectCommand({ Bucket: BUCKET(), Key: key }),
-    { expiresIn: 7 * 24 * 3600 } // 7 days
+    { expiresIn: 24 * 3600 } // 24 hours
   );
 }

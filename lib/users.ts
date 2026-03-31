@@ -17,8 +17,11 @@ async function ensureAdminExists(): Promise<void> {
     new GetCommand({ TableName: TABLE(), Key: { username: ADMIN_USERNAME } })
   );
   if (!existing.Item) {
-    const hash =
-      process.env.ADMIN_PASSWORD_HASH ?? (await bcrypt.hash("Gridstorm", 10));
+    const hashEnv = process.env.ADMIN_PASSWORD_HASH;
+    if (!hashEnv && process.env.NODE_ENV === "production") {
+      throw new Error("ADMIN_PASSWORD_HASH env var is required in production");
+    }
+    const hash = hashEnv ?? (await bcrypt.hash("Gridstorm", 10));
     const admin: UserRecord = {
       username: ADMIN_USERNAME,
       password: hash,
