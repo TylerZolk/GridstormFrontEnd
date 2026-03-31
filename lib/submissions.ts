@@ -1,7 +1,12 @@
-// lib/submissions.ts
-import { Redis } from "@upstash/redis";
+import "server-only";
+import {
+  PutCommand,
+  ScanCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { getDdbClient } from "./aws/dynamodb";
 
-const redis = Redis.fromEnv();
+const TABLE = () => process.env.DYNAMODB_TABLE_NAME!;
 
 export type SubmissionFlag = "processing" | "vegetation" | "review";
 
@@ -24,26 +29,50 @@ export type Submission = {
   };
 };
 
-const INDEX_KEY = "submissions:index";
+// DynamoDB key schema: tagNumber (PK) + submittedAt (SK, ISO string)
+// All other Submission fields stored as regular attributes.
 
 export async function saveSubmission(submission: Submission): Promise<void> {
-  await redis.set(`submission:${submission.id}`, JSON.stringify(submission));
-  await redis.zadd(INDEX_KEY, { score: submission.createdAt, member: submission.id });
+  const submittedAt = new Date(submission.createdAt).toISOString();
+  await getDdbClient().send(
+    new PutCommand({
+      TableName: TABLE(),
+      Item: { ...submission, submittedAt },
+    })
+  );
 }
 
 export async function listSubmissions(): Promise<Submission[]> {
-  const ids = await redis.zrange(INDEX_KEY, 0, -1, { rev: true });
-  if (!ids || ids.length === 0) return [];
-  const results = await Promise.all(ids.map((id) => redis.get<string>(`submission:${id}`)));
-  return results
-    .filter((s): s is string => s !== null)
-    .map((s) => (typeof s === "string" ? JSON.parse(s) : s) as Submission);
+  const result = await getDdbClient().send(
+    new ScanCommand({ TableName: TABLE() })
+  );
+  const items = (result.Items ?? []) as Submission[];
+  return items.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function updateSubmissionFlags(id: string, flags: SubmissionFlag[]): Promise<void> {
-  const raw = await redis.get<string>(`submission:${id}`);
-  if (!raw) throw new Error("Submission not found");
-  const submission: Submission = typeof raw === "string" ? JSON.parse(raw) : raw;
-  submission.flags = flags;
-  await redis.set(`submission:${id}`, JSON.stringify(submission));
+export async function updateSubmissionFlags(
+  id: string,
+  flags: SubmissionFlag[]
+): Promise<void> {
+  // Scan to find the DynamoDB composite key for this submission id
+  const result = await getDdbClient().send(
+    new ScanCommand({
+      TableName: TABLE(),
+      FilterExpression: "id = :id",
+      ExpressionAttributeValues: { ":id": id },
+    })
+  );
+  const item = result.Items?.[0] as
+    | (Submission & { submittedAt: string })
+    | undefined;
+  if (!item) throw new Error(`Submission ${id} not found`);
+
+  await getDdbClient().send(
+    new UpdateCommand({
+      TableName: TABLE(),
+      Key: { tagNumber: item.tagNumber, submittedAt: item.submittedAt },
+      UpdateExpression: "SET flags = :flags",
+      ExpressionAttributeValues: { ":flags": flags },
+    })
+  );
 }
