@@ -24,7 +24,7 @@ function getS3() {
 
 const BUCKET = () => process.env.S3_BUCKET_NAME!;
 
-/** Upload a buffer/stream to S3 and return a presigned view URL (7-day expiry). */
+/** Upload a buffer/stream to S3 and return a presigned view URL (24-hour expiry). */
 export async function uploadAndSign(
   key: string,
   body: Buffer,
@@ -38,6 +38,31 @@ export async function uploadAndSign(
       ContentType: contentType,
     })
   );
+  return getSignedUrl(
+    getS3(),
+    new GetObjectCommand({ Bucket: BUCKET(), Key: key }),
+    { expiresIn: 24 * 3600 } // 24 hours
+  );
+}
+
+/** Generate a presigned PUT URL for direct browser-to-S3 upload (10-minute expiry). */
+export async function getPresignedPutUrl(
+  key: string,
+  contentType: string
+): Promise<string> {
+  return getSignedUrl(
+    getS3(),
+    new PutObjectCommand({
+      Bucket: BUCKET(),
+      Key: key,
+      ContentType: contentType,
+    }),
+    { expiresIn: 10 * 60 } // 10 minutes
+  );
+}
+
+/** Generate a presigned GET URL for viewing a stored object (24-hour expiry). */
+export async function getPresignedGetUrl(key: string): Promise<string> {
   return getSignedUrl(
     getS3(),
     new GetObjectCommand({ Bucket: BUCKET(), Key: key }),

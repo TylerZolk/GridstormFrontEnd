@@ -29,6 +29,58 @@ const STAGE_LABEL: Record<SubmitStage, string> = {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+const MAX_AI_SIZE = 4 * 1024 * 1024; // 4 MB — stays under Vercel 4.5 MB request limit
+
+/**
+ * Compress an image client-side using canvas.
+ * Returns the file as-is if it's already under maxSizeBytes.
+ */
+async function compressImage(file: File, maxSizeBytes: number): Promise<File> {
+  if (file.size <= maxSizeBytes) return file;
+
+  const bitmap = await createImageBitmap(file);
+  let { width, height } = bitmap;
+
+  // Scale down large images to max 2048px on longest side
+  const maxDim = 2048;
+  if (width > maxDim || height > maxDim) {
+    const scale = maxDim / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  // Try decreasing quality until under limit
+  for (let q = 0.8; q >= 0.2; q -= 0.1) {
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("Compression failed"))),
+        "image/jpeg",
+        q
+      )
+    );
+    if (blob.size <= maxSizeBytes) {
+      return new File([blob], file.name, { type: "image/jpeg" });
+    }
+  }
+
+  // Lowest quality fallback
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Compression failed"))),
+      "image/jpeg",
+      0.1
+    )
+  );
+  return new File([blob], file.name, { type: "image/jpeg" });
+}
+
 /** Best-effort condition string from vegetation % */
 function vegToCondition(pct: number): string {
   if (pct >= 60) return "Critical";
@@ -38,14 +90,16 @@ function vegToCondition(pct: number): string {
   return "Excellent";
 }
 
-/** POST a single file to a PolePad AI endpoint, return parsed JSON */
+/** POST a single file to a PolePad AI endpoint via the Next.js proxy, compressing first. */
 async function callPolePadEndpoint(
-  _baseUrl: string,
   path: string,
   file: File
 ): Promise<Record<string, unknown>> {
+  // Compress for the AI proxy to stay under Vercel's body limit
+  const compressed = await compressImage(file, MAX_AI_SIZE);
+
   const fd = new FormData();
-  fd.append("file", file);
+  fd.append("file", compressed);
 
   // Route through Next.js proxy — avoids Cloudflare browser challenge
   const proxyPath = "/api/polepad" + path;
@@ -65,10 +119,6 @@ export default function SubmissionClient() {
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [stage, setStage] = useState<SubmitStage>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  // The base URL for the PolePad AI backend.
-  // In production swap this for your Cloudflare tunnel URL via an env var.
-  const POLEPAD_BASE = process.env.NEXT_PUBLIC_POLEPAD_URL ?? "https://bell-sources-cement-disco.trycloudflare.com";
 
   function handleFiles(key: string, selected: FileList | null, multiple: boolean) {
     if (!selected) return;
@@ -90,21 +140,60 @@ export default function SubmissionClient() {
     setError(null);
 
     try {
-      // ── 1. Upload all photos to Vercel Blob ──────────────────────────────
+      // ── 1. Upload all photos directly to S3 via presigned URLs ─────────
       setStage("uploading");
 
-      const fd = new FormData();
+      // Build the list of files to request presigned URLs for
+      const fileList: { category: string; contentType: string; filename: string; file: File }[] = [];
       for (const [cat, arr] of Object.entries(files)) {
-        for (const f of arr) fd.append(cat, f);
+        for (const f of arr) {
+          fileList.push({
+            category: cat,
+            contentType: f.type || "image/jpeg",
+            filename: f.name,
+            file: f,
+          });
+        }
       }
 
-      const uploadRes = await fetch("/api/submissions/upload-photos", {
+      // Request presigned PUT URLs from the server (tiny JSON request)
+      const presignRes = await fetch("/api/submissions/presign", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: fileList.map(({ category, contentType, filename }) => ({
+            category,
+            contentType,
+            filename,
+          })),
+        }),
       });
-      const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadJson?.error ?? "Photo upload failed");
-      const photoUrls: Record<string, string[]> = uploadJson.urls;
+      const presignJson = await presignRes.json();
+      if (!presignRes.ok) throw new Error(presignJson?.error ?? "Failed to get upload URLs");
+
+      const uploads: { category: string; key: string; putUrl: string; getUrl: string }[] =
+        presignJson.uploads;
+
+      // Upload each file directly to S3 via presigned PUT URL (no Vercel involved)
+      await Promise.all(
+        uploads.map(async (upload, i) => {
+          const file = fileList[i].file;
+          const res = await fetch(upload.putUrl, {
+            method: "PUT",
+            headers: { "Content-Type": file.type || "image/jpeg" },
+            body: file,
+          });
+          if (!res.ok) {
+            throw new Error(`S3 upload failed for ${file.name} (HTTP ${res.status})`);
+          }
+        })
+      );
+
+      // Organize the GET URLs by category
+      const photoUrls: Record<string, string[]> = { tag: [], overview: [], base: [], pad: [] };
+      for (const upload of uploads) {
+        photoUrls[upload.category].push(upload.getUrl);
+      }
 
       // ── 2. Analyse asset tag ─────────────────────────────────────────────
       setStage("analysing_tag");
@@ -118,7 +207,6 @@ export default function SubmissionClient() {
       if (tagFile) {
         try {
           const tagResult = await callPolePadEndpoint(
-            POLEPAD_BASE,
             "/api1/analyze-asset-tag/",
             tagFile
           );
@@ -147,7 +235,6 @@ export default function SubmissionClient() {
       if (overviewFile) {
         try {
           const poleResult = await callPolePadEndpoint(
-            POLEPAD_BASE,
             "/api2/analyze-pole/",
             overviewFile
           );
@@ -167,7 +254,7 @@ export default function SubmissionClient() {
 
       const vegetationEncroachment = poleFlagged || tagVegPct >= 35;
 
-      const mockResult = {
+      const reviewPayload = {
         tagNumber,
         poleCondition,
         padCondition: "Fair",          // no pad endpoint yet — inspector edits
@@ -187,7 +274,7 @@ export default function SubmissionClient() {
           pad:      (files["pad"]      ?? []).length,
         },
 
-        // Verified Blob URLs for DB storage
+        // Presigned GET URLs for DB storage
         photoUrls,
 
         // AI-generated annotated images (passed through for display on review)
@@ -197,7 +284,7 @@ export default function SubmissionClient() {
         },
       };
 
-      sessionStorage.setItem("submissionReview", JSON.stringify(mockResult));
+      sessionStorage.setItem("submissionReview", JSON.stringify(reviewPayload));
       router.push("/portal/submission/review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -338,7 +425,7 @@ function UploadCard({
         {/* Tag slot: remind user this drives the AI OCR */}
         {slot.key === "tag" && (
           <p className="mt-2 text-xs font-semibold text-yellow-700">
-            ⚡ This photo is sent to AI for tag ID & vegetation analysis.
+            ⚡ This photo is sent to AI for tag ID &amp; vegetation analysis.
           </p>
         )}
         {slot.key === "overview" && (

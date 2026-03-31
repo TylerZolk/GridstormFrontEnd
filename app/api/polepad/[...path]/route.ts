@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
  
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 10;
  
 const POLEPAD_BASE = process.env.POLEPAD_URL;
  

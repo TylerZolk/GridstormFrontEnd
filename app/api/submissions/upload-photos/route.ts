@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { uploadAndSign } from "@/lib/aws/s3";
 
-export const maxDuration = 60;
+export const maxDuration = 10;
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = ["tag", "overview", "base", "pad"] as const;
