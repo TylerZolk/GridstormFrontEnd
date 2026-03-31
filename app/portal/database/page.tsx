@@ -1,0 +1,227 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type SubmissionFlag = "processing" | "vegetation" | "review";
+
+type Submission = {
+  id: string;
+  createdAt: number;
+  submittedBy: string;
+  tagNumber: string;
+  poleCondition: string;
+  padCondition: string;
+  overviewNotes: string;
+  baseNotes: string;
+  vegetationEncroachment: boolean;
+  flags: SubmissionFlag[];
+  photoUrls: { tag: string[]; overview: string[]; base: string[]; pad: string[] };
+};
+
+const CONDITION_COLORS: Record<string, string> = {
+  Excellent: "bg-green-100 text-green-800",
+  Good:      "bg-blue-100 text-blue-800",
+  Fair:      "bg-yellow-100 text-yellow-800",
+  Poor:      "bg-orange-100 text-orange-800",
+  Critical:  "bg-red-100 text-red-800",
+};
+
+const FLAG_META: Record<SubmissionFlag, { label: string; color: string; emoji: string }> = {
+  processing: { label: "Processing",  color: "bg-gray-100 text-gray-700 ring-gray-200",       emoji: "⏳" },
+  vegetation: { label: "Vegetation",  color: "bg-green-100 text-green-800 ring-green-300",    emoji: "🌿" },
+  review:     { label: "Review",      color: "bg-purple-100 text-purple-800 ring-purple-300", emoji: "🔍" },
+};
+
+function ConditionBadge({ value }: { value: string }) {
+  const cls = CONDITION_COLORS[value] ?? "bg-gray-100 text-gray-700";
+  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${cls}`}>{value || "—"}</span>;
+}
+
+function FlagBadge({ flag }: { flag: SubmissionFlag }) {
+  const m = FLAG_META[flag];
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${m.color}`}>{m.emoji} {m.label}</span>;
+}
+
+function formatDate(ms: number) {
+  return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export default function DatabasePage() {
+  const router = useRouter();
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Submission | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [filterFlag, setFilterFlag] = useState<SubmissionFlag | "all">("all");
+
+  useEffect(() => {
+    fetch("/api/submissions/list")
+      .then(async (r) => {
+        if (r.status === 401) { router.push("/login"); return null; }
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+        return data;
+      })
+      .then((data) => { if (data) setSubmissions(data.submissions ?? []); })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  const filtered = filterFlag === "all" ? submissions : submissions.filter((s) => s.flags?.includes(filterFlag));
+
+  const allPhotos = selected ? [
+    ...(selected.photoUrls?.tag ?? []).map((u) => ({ url: u, cat: "Tag" })),
+    ...(selected.photoUrls?.overview ?? []).map((u) => ({ url: u, cat: "Overview" })),
+    ...(selected.photoUrls?.base ?? []).map((u) => ({ url: u, cat: "Base" })),
+    ...(selected.photoUrls?.pad ?? []).map((u) => ({ url: u, cat: "Pad" })),
+  ] : [];
+
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-10">
+      <div className="rounded-3xl bg-white p-10 shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">Submission Database</h1>
+            <p className="mt-1 text-blue-900/70">All confirmed inspection reports, newest first.</p>
+          </div>
+          <span className="rounded-2xl bg-blue-50 px-5 py-2 text-sm font-bold text-blue-900 ring-1 ring-blue-100">
+            {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {(["all", "vegetation", "review", "processing"] as const).map((f) => (
+            <button key={f} onClick={() => setFilterFlag(f)}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all ${
+                filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
+              }`}>
+              {f === "all" ? "All" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
+            </button>
+          ))}
+        </div>
+
+        {loading && <div className="mt-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>}
+        {error && <div className="mt-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>}
+
+        {!loading && !error && filtered.length === 0 && (
+          <div className="mt-16 text-center">
+            <p className="text-6xl">📋</p>
+            <p className="mt-4 text-xl font-bold text-blue-950">No submissions{filterFlag !== "all" ? " with this flag" : " yet"}</p>
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 && (
+          <div className="mt-8 overflow-x-auto rounded-2xl ring-1 ring-blue-100">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-blue-50 text-xs font-bold uppercase tracking-wider text-blue-700">
+                <tr>
+                  <th className="px-5 py-3">Date</th>
+                  <th className="px-5 py-3">Tag #</th>
+                  <th className="px-5 py-3">By</th>
+                  <th className="px-5 py-3">Pole</th>
+                  <th className="px-5 py-3">Pad</th>
+                  <th className="px-5 py-3">Vegetation</th>
+                  <th className="px-5 py-3">Flags</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-blue-50">
+                {filtered.map((s) => (
+                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50" onClick={() => setSelected(s)}>
+                    <td className="px-5 py-3 text-blue-900/70 whitespace-nowrap">{formatDate(s.createdAt)}</td>
+                    <td className="px-5 py-3 font-bold text-blue-950">{s.tagNumber || "—"}</td>
+                    <td className="px-5 py-3 text-blue-900/80">{s.submittedBy}</td>
+                    <td className="px-5 py-3"><ConditionBadge value={s.poleCondition} /></td>
+                    <td className="px-5 py-3"><ConditionBadge value={s.padCondition} /></td>
+                    <td className="px-5 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${s.vegetationEncroachment ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}>
+                        {s.vegetationEncroachment ? "Yes" : "No"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(s.flags ?? []).length === 0 ? <span className="text-blue-300 text-xs">—</span> : (s.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3"><span className="text-xs font-semibold text-blue-500 hover:underline">View →</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-blue-950">Tag #{selected.tagNumber || "—"}</h2>
+                <p className="text-sm text-blue-900/60">{formatDate(selected.createdAt)} · {selected.submittedBy}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100">✕</button>
+            </div>
+
+            {(selected.flags ?? []).length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">{(selected.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}</div>
+            )}
+
+            <div className="mt-6 grid grid-cols-3 gap-4">
+              <Detail label="Pole Condition"><ConditionBadge value={selected.poleCondition} /></Detail>
+              <Detail label="Pad Condition"><ConditionBadge value={selected.padCondition} /></Detail>
+              <Detail label="Vegetation">
+                <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
+                  {selected.vegetationEncroachment ? "Yes" : "No"}
+                </span>
+              </Detail>
+            </div>
+
+            {selected.overviewNotes && <div className="mt-5"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p><p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p></div>}
+            {selected.baseNotes && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p><p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p></div>}
+
+            {allPhotos.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">Photos</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {allPhotos.map(({ url, cat }, i) => (
+                    <button key={i} onClick={() => setLightbox(url)} className="group relative overflow-hidden rounded-xl aspect-square bg-blue-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={cat} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white font-semibold">{cat}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {allPhotos.length === 0 && (
+              <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission. Photos are saved for submissions made after the latest update.</p>
+            )}
+
+            <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
+          </div>
+        </div>
+      )}
+
+      {lightbox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox} alt="Photo" className="max-h-full max-w-full rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40">✕</button>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl bg-blue-50 p-3 ring-1 ring-blue-100">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">{label}</p>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
+}
