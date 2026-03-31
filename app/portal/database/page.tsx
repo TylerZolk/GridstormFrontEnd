@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 type SubmissionFlag = "processing" | "vegetation" | "review";
@@ -55,6 +55,8 @@ export default function DatabasePage() {
   const [selected, setSelected] = useState<Submission | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [filterFlag, setFilterFlag] = useState<SubmissionFlag | "all">("all");
+  const [searchTag, setSearchTag] = useState("");
+  const [searchUser, setSearchUser] = useState("");
 
   useEffect(() => {
     fetch("/api/submissions/list")
@@ -69,7 +71,20 @@ export default function DatabasePage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  const filtered = filterFlag === "all" ? submissions : submissions.filter((s) => s.flags?.includes(filterFlag));
+  // Unique users for dropdown
+  const uniqueUsers = useMemo(() => {
+    const users = [...new Set(submissions.map((s) => s.submittedBy))].sort();
+    return users;
+  }, [submissions]);
+
+  const filtered = useMemo(() => {
+    return submissions.filter((s) => {
+      if (filterFlag !== "all" && !s.flags?.includes(filterFlag)) return false;
+      if (searchTag.trim() && !s.tagNumber?.toLowerCase().includes(searchTag.trim().toLowerCase())) return false;
+      if (searchUser && s.submittedBy !== searchUser) return false;
+      return true;
+    });
+  }, [submissions, filterFlag, searchTag, searchUser]);
 
   const allPhotos = selected ? [
     ...(selected.photoUrls?.tag ?? []).map((u) => ({ url: u, cat: "Tag" })),
@@ -78,37 +93,101 @@ export default function DatabasePage() {
     ...(selected.photoUrls?.pad ?? []).map((u) => ({ url: u, cat: "Pad" })),
   ] : [];
 
+  const hasActiveSearch = searchTag.trim() || searchUser;
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
       <div className="rounded-3xl bg-white p-10 shadow-lg">
+
+        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">Submission Database</h1>
             <p className="mt-1 text-blue-900/70">All confirmed inspection reports, newest first.</p>
           </div>
           <span className="rounded-2xl bg-blue-50 px-5 py-2 text-sm font-bold text-blue-900 ring-1 ring-blue-100">
-            {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+            {filtered.length} / {submissions.length} record{submissions.length !== 1 ? "s" : ""}
           </span>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        {/* Search Bar */}
+        <div className="mt-6 flex flex-wrap gap-3">
+          {/* Tag search */}
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 flex-1 min-w-[180px]">
+            <span className="text-blue-400 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Search by tag number…"
+              value={searchTag}
+              onChange={(e) => setSearchTag(e.target.value)}
+              className="bg-transparent text-sm text-blue-900 placeholder:text-blue-400 outline-none w-full"
+            />
+            {searchTag && (
+              <button onClick={() => setSearchTag("")} className="text-blue-400 hover:text-blue-600 text-xs font-bold">✕</button>
+            )}
+          </div>
+
+          {/* User filter */}
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px]">
+            <span className="text-blue-400 text-sm">👤</span>
+            <select
+              value={searchUser}
+              onChange={(e) => setSearchUser(e.target.value)}
+              className="bg-transparent text-sm text-blue-900 outline-none w-full"
+            >
+              <option value="">All inspectors</option>
+              {uniqueUsers.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Clear all */}
+          {hasActiveSearch && (
+            <button
+              onClick={() => { setSearchTag(""); setSearchUser(""); }}
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition"
+            >
+              Clear search
+            </button>
+          )}
+        </div>
+
+        {/* Flag Filters */}
+        <div className="mt-4 flex flex-wrap gap-2">
           {(["all", "vegetation", "review", "processing"] as const).map((f) => (
             <button key={f} onClick={() => setFilterFlag(f)}
               className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all ${
                 filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
               }`}>
-              {f === "all" ? "All" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
+              {f === "all" ? "All flags" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
             </button>
           ))}
         </div>
+
+        {/* Active search notice */}
+        {hasActiveSearch && (
+          <div className="mt-3 rounded-xl bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+            Showing {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            {searchTag && <> matching tag "<span className="font-bold">{searchTag}</span>"</>}
+            {searchUser && <> by <span className="font-bold">{searchUser}</span></>}
+          </div>
+        )}
 
         {loading && <div className="mt-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>}
         {error && <div className="mt-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>}
 
         {!loading && !error && filtered.length === 0 && (
           <div className="mt-16 text-center">
-            <p className="text-6xl">📋</p>
-            <p className="mt-4 text-xl font-bold text-blue-950">No submissions{filterFlag !== "all" ? " with this flag" : " yet"}</p>
+            <p className="text-6xl">{hasActiveSearch ? "🔍" : "📋"}</p>
+            <p className="mt-4 text-xl font-bold text-blue-950">
+              {hasActiveSearch ? "No matching submissions found" : filterFlag !== "all" ? "No submissions with this flag" : "No submissions yet"}
+            </p>
+            {hasActiveSearch && (
+              <button onClick={() => { setSearchTag(""); setSearchUser(""); }} className="mt-3 text-sm font-semibold text-blue-500 hover:underline">
+                Clear search
+              </button>
+            )}
           </div>
         )}
 
@@ -154,6 +233,7 @@ export default function DatabasePage() {
         )}
       </div>
 
+      {/* Detail Modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -198,7 +278,7 @@ export default function DatabasePage() {
             )}
 
             {allPhotos.length === 0 && (
-              <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission. Photos are saved for submissions made after the latest update.</p>
+              <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission.</p>
             )}
 
             <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
