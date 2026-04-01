@@ -158,7 +158,7 @@ export default async function PortalDashboardPage() {
                       {recentSubmissions.map((s) => (
                         <Link
                           key={s.id}
-                          href="/portal/database"
+                          href={`/portal/database?id=${s.id}`}
                           className="flex items-center justify-between rounded-xl bg-blue-50 px-4 py-2.5 hover:bg-blue-100 transition"
                         >
                           <div>

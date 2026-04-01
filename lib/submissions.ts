@@ -3,6 +3,7 @@ import {
   PutCommand,
   ScanCommand,
   UpdateCommand,
+  QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { getDdbClient } from "./aws/dynamodb";
 
@@ -73,6 +74,60 @@ export async function updateSubmissionFlags(
       Key: { tagNumber: item.tagNumber, submittedAt: item.submittedAt },
       UpdateExpression: "SET flags = :flags",
       ExpressionAttributeValues: { ":flags": flags },
+    })
+  );
+}
+
+export async function getLatestSubmissionByTag(
+  tagNumber: string
+): Promise<Submission | null> {
+  const result = await getDdbClient().send(
+    new QueryCommand({
+      TableName: TABLE(),
+      KeyConditionExpression: "tagNumber = :tag",
+      ExpressionAttributeValues: { ":tag": tagNumber },
+      ScanIndexForward: false, // Descending order (newest first)
+      Limit: 1,
+    })
+  );
+  return (result.Items?.[0] as Submission) || null;
+}
+
+export async function updateSubmissionDetails(
+  id: string,
+  updates: Partial<Omit<Submission, "id" | "createdAt" | "submittedAt">>
+): Promise<void> {
+  const result = await getDdbClient().send(
+    new ScanCommand({
+      TableName: TABLE(),
+      FilterExpression: "id = :id",
+      ExpressionAttributeValues: { ":id": id },
+    })
+  );
+  const item = result.Items?.[0] as
+    | (Submission & { submittedAt: string })
+    | undefined;
+  if (!item) throw new Error(`Submission ${id} not found`);
+
+  const expressionAttributeValues: Record<string, any> = {};
+  const expressionAttributeNames: Record<string, string> = {};
+  const updateExpressions: string[] = [];
+
+  for (const [key, value] of Object.entries(updates)) {
+    expressionAttributeValues[`:${key}`] = value;
+    expressionAttributeNames[`#${key}`] = key;
+    updateExpressions.push(`#${key} = :${key}`);
+  }
+
+  if (updateExpressions.length === 0) return;
+
+  await getDdbClient().send(
+    new UpdateCommand({
+      TableName: TABLE(),
+      Key: { tagNumber: item.tagNumber, submittedAt: item.submittedAt },
+      UpdateExpression: `SET ${updateExpressions.join(", ")}`,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ExpressionAttributeNames: expressionAttributeNames,
     })
   );
 }

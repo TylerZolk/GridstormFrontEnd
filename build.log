@@ -1,0 +1,15 @@
+
+> dominion-front@0.1.0 dev
+> next dev
+
+'\\wsl.localhost\Ubuntu-22.04\home\benlund\claude\polepad-ai-test\GridstormFrontEnd'
+CMD.EXE was started with the above path as the current directory.
+UNC paths are not supported.  Defaulting to Windows directory.
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://169.254.83.107:3000
+
+✓ Starting...
+Error: > Couldn't find any `pages` or `app` directory. Please create one under the project root
+    at ignore-listed frames
+[?25h

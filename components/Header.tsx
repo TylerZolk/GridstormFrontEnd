@@ -12,7 +12,7 @@ export default async function Header() {
   return (
     <header className="w-full bg-blue-900">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-6">
-        <Link href="/" className="flex items-center gap-4">
+        <Link href={user ? "/portal" : "/"} className="flex items-center gap-4">
           <Image
             src="/dominion-logo.svg"
             alt="Dominion Logo"
@@ -26,8 +26,16 @@ export default async function Header() {
         </Link>
 
         <div className="flex items-center gap-4">
-          {user ? (
+          {user && (
             <>
+              {String(user.role).toLowerCase().includes("admin") && (
+                <Link
+                  href="/admin"
+                  className="rounded-xl border border-white/20 px-5 py-3 text-base font-semibold text-white transition hover:bg-white/10"
+                >
+                  Admin Panel
+                </Link>
+              )}
               <Link
                 href="/portal"
                 className="rounded-xl bg-white/10 px-5 py-3 text-base font-semibold text-white transition hover:bg-white/15"
@@ -36,13 +44,6 @@ export default async function Header() {
               </Link>
               <LogoutButton />
             </>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded-xl bg-yellow-400 px-6 py-3 text-base font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98]"
-            >
-              Login
-            </Link>
           )}
         </div>
       </div>

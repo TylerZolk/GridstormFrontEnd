@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type SubmissionFlag = "processing" | "vegetation" | "review";
 
@@ -47,16 +47,61 @@ function formatDate(ms: number) {
   return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function DatabasePage() {
+function DatabaseContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectId = searchParams.get("id");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Submission | null>(null);
+  const [editedSelected, setEditedSelected] = useState<Submission | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [filterFlag, setFilterFlag] = useState<SubmissionFlag | "all">("all");
   const [searchTag, setSearchTag] = useState("");
   const [searchUser, setSearchUser] = useState("");
+  const [resolving, setResolving] = useState(false);
+
+  function closeModal() {
+    setSelected(null);
+    setIsEditing(false);
+    if (searchParams.toString()) {
+      router.replace("/portal/database", { scroll: false });
+    }
+  }
+
+  async function resolveReviewFlag() {
+    if (!editedSelected) return;
+    setResolving(true);
+    try {
+      const newFlags = (editedSelected.flags || []).filter(f => f !== "review");
+      
+      const res = await fetch("/api/submissions/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: editedSelected.id, 
+          flags: newFlags,
+          poleCondition: editedSelected.poleCondition,
+          padCondition: editedSelected.padCondition,
+          vegetationEncroachment: editedSelected.vegetationEncroachment,
+          overviewNotes: editedSelected.overviewNotes,
+          baseNotes: editedSelected.baseNotes
+        })
+      });
+      if (!res.ok) throw new Error("Failed to update submission");
+      
+      const updatedSubmission = { ...editedSelected, flags: newFlags };
+      setSubmissions(prev => prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s));
+      setSelected(updatedSubmission);
+      setIsEditing(false);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setResolving(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/submissions/list")
@@ -66,10 +111,22 @@ export default function DatabasePage() {
         if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
         return data;
       })
-      .then((data) => { if (data) setSubmissions(data.submissions ?? []); })
+      .then((data) => { 
+        if (data) {
+          const list = data.submissions ?? [];
+          setSubmissions(list);
+          if (preselectId) {
+            const found = list.find((s: Submission) => s.id === preselectId);
+            if (found) {
+              setSelected(found);
+              setEditedSelected(found);
+            }
+          }
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, preselectId]);
 
   // Unique users for dropdown
   const uniqueUsers = useMemo(() => {
@@ -123,17 +180,17 @@ export default function DatabasePage() {
               className="bg-transparent text-sm text-blue-900 placeholder:text-blue-400 outline-none w-full"
             />
             {searchTag && (
-              <button onClick={() => setSearchTag("")} className="text-blue-400 hover:text-blue-600 text-xs font-bold">✕</button>
+              <button onClick={() => setSearchTag("")} className="text-blue-400 hover:text-blue-600 text-xs font-bold cursor-pointer">✕</button>
             )}
           </div>
 
           {/* User filter */}
-          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px]">
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px] cursor-pointer">
             <span className="text-blue-400 text-sm">👤</span>
             <select
               value={searchUser}
               onChange={(e) => setSearchUser(e.target.value)}
-              className="bg-transparent text-sm text-blue-900 outline-none w-full"
+              className="bg-transparent text-sm text-blue-900 outline-none w-full cursor-pointer"
             >
               <option value="">All inspectors</option>
               {uniqueUsers.map((u) => (
@@ -146,7 +203,7 @@ export default function DatabasePage() {
           {hasActiveSearch && (
             <button
               onClick={() => { setSearchTag(""); setSearchUser(""); }}
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer"
             >
               Clear search
             </button>
@@ -157,7 +214,7 @@ export default function DatabasePage() {
         <div className="mt-4 flex flex-wrap gap-2">
           {(["all", "vegetation", "review", "processing"] as const).map((f) => (
             <button key={f} onClick={() => setFilterFlag(f)}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all ${
+              className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all cursor-pointer ${
                 filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
               }`}>
               {f === "all" ? "All flags" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
@@ -184,7 +241,7 @@ export default function DatabasePage() {
               {hasActiveSearch ? "No matching submissions found" : filterFlag !== "all" ? "No submissions with this flag" : "No submissions yet"}
             </p>
             {hasActiveSearch && (
-              <button onClick={() => { setSearchTag(""); setSearchUser(""); }} className="mt-3 text-sm font-semibold text-blue-500 hover:underline">
+              <button onClick={() => { setSearchTag(""); setSearchUser(""); }} className="mt-3 text-sm font-semibold text-blue-500 hover:underline cursor-pointer">
                 Clear search
               </button>
             )}
@@ -206,9 +263,9 @@ export default function DatabasePage() {
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-50">
+              <tbody className="divide-y divide-blue-200">
                 {filtered.map((s) => (
-                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50" onClick={() => setSelected(s)}>
+                  <tr key={s.id} className="cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
                     <td className="px-5 py-3 text-blue-900/70 whitespace-nowrap">{formatDate(s.createdAt)}</td>
                     <td className="px-5 py-3 font-bold text-blue-950">{s.tagNumber || "—"}</td>
                     <td className="px-5 py-3 text-blue-900/80">{s.submittedBy}</td>
@@ -224,7 +281,11 @@ export default function DatabasePage() {
                         {(s.flags ?? []).length === 0 ? <span className="text-blue-300 text-xs">—</span> : (s.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}
                       </div>
                     </td>
-                    <td className="px-5 py-3"><span className="text-xs font-semibold text-blue-500 hover:underline">View →</span></td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex rounded-xl bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-900 ring-1 ring-blue-300 transition-colors hover:bg-blue-200 cursor-pointer">
+                        View →
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -235,14 +296,14 @@ export default function DatabasePage() {
 
       {/* Detail Modal */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={closeModal}>
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-blue-950">Tag #{selected.tagNumber || "—"}</h2>
                 <p className="text-sm text-blue-900/60">{formatDate(selected.createdAt)} · {selected.submittedBy}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100">✕</button>
+              <button onClick={closeModal} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100 cursor-pointer">✕</button>
             </div>
 
             {(selected.flags ?? []).length > 0 && (
@@ -250,24 +311,92 @@ export default function DatabasePage() {
             )}
 
             <div className="mt-6 grid grid-cols-3 gap-4">
-              <Detail label="Pole Condition"><ConditionBadge value={selected.poleCondition} /></Detail>
-              <Detail label="Pad Condition"><ConditionBadge value={selected.padCondition} /></Detail>
+              <Detail label="Pole Condition">
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.poleCondition}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, poleCondition: e.target.value } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <ConditionBadge value={selected.poleCondition} />
+                )}
+              </Detail>
+              <Detail label="Pad Condition">
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.padCondition}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, padCondition: e.target.value } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <ConditionBadge value={selected.padCondition} />
+                )}
+              </Detail>
               <Detail label="Vegetation">
-                <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
-                  {selected.vegetationEncroachment ? "Yes" : "No"}
-                </span>
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.vegetationEncroachment ? "Yes" : "No"}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, vegetationEncroachment: e.target.value === "Yes" } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    <option>Yes</option>
+                    <option>No</option>
+                  </select>
+                ) : (
+                  <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
+                    {selected.vegetationEncroachment ? "Yes" : "No"}
+                  </span>
+                )}
               </Detail>
             </div>
 
-            {selected.overviewNotes && <div className="mt-5"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p><p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p></div>}
-            {selected.baseNotes && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p><p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p></div>}
+            <div className="mt-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p>
+              {isEditing ? (
+                <textarea
+                  value={editedSelected?.overviewNotes ?? ""}
+                  onChange={(e) => setEditedSelected(prev => prev ? { ...prev, overviewNotes: e.target.value } : prev)}
+                  className="mt-1 w-full rounded-md border border-blue-200 bg-white p-2 text-sm text-blue-950 outline-none focus:ring-2 focus:ring-blue-300"
+                  rows={3}
+                />
+              ) : (
+                selected.overviewNotes ? (
+                  <p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-blue-400 italic">No overview notes.</p>
+                )
+              )}
+            </div>
+            
+            <div className="mt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p>
+              {isEditing ? (
+                <textarea
+                  value={editedSelected?.baseNotes ?? ""}
+                  onChange={(e) => setEditedSelected(prev => prev ? { ...prev, baseNotes: e.target.value } : prev)}
+                  className="mt-1 w-full rounded-md border border-blue-200 bg-white p-2 text-sm text-blue-950 outline-none focus:ring-2 focus:ring-blue-300"
+                  rows={3}
+                />
+              ) : (
+                selected.baseNotes ? (
+                  <p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-blue-400 italic">No base notes.</p>
+                )
+              )}
+            </div>
 
             {allPhotos.length > 0 && (
               <div className="mt-6">
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">Photos</p>
                 <div className="grid grid-cols-3 gap-2">
                   {allPhotos.map(({ url, cat }, i) => (
-                    <button key={i} onClick={() => setLightbox(url)} className="group relative overflow-hidden rounded-xl aspect-square bg-blue-50">
+                    <button key={i} onClick={() => setLightbox(url)} className="group relative overflow-hidden rounded-xl aspect-square bg-blue-50 cursor-pointer">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt={cat} className="h-full w-full object-cover transition group-hover:scale-105" />
                       <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white font-semibold">{cat}</span>
@@ -281,7 +410,35 @@ export default function DatabasePage() {
               <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission.</p>
             )}
 
-            <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
+            <div className="mt-8 flex gap-3 flex-wrap">
+              {selected.flags?.includes("review") && (
+                <>
+                  {!isEditing ? (
+                    <button 
+                      onClick={() => setIsEditing(true)}
+                      className="flex-1 rounded-xl bg-blue-100 py-3 text-sm font-bold text-blue-900 ring-1 ring-blue-300 hover:bg-blue-200 cursor-pointer"
+                    >
+                      Edit Data
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setIsEditing(false)}
+                      className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200 cursor-pointer"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button 
+                    onClick={resolveReviewFlag} 
+                    disabled={resolving}
+                    className="flex-1 rounded-xl bg-purple-100 py-3 text-sm font-bold text-purple-800 ring-1 ring-purple-300 hover:bg-purple-200 disabled:opacity-50 cursor-pointer"
+                  >
+                    {resolving ? "Saving..." : (isEditing ? "Save & Resolve" : "Mark Review Resolved")}
+                  </button>
+                </>
+              )}
+              <button onClick={closeModal} className="flex-1 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100 cursor-pointer">Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -290,7 +447,7 @@ export default function DatabasePage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Photo" className="max-h-full max-w-full rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40">✕</button>
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40 cursor-pointer">✕</button>
         </div>
       )}
     </main>
@@ -303,5 +460,13 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
       <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">{label}</p>
       <div className="mt-1">{children}</div>
     </div>
+  );
+}
+
+export default function DatabasePage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-blue-900 font-bold">Loading database...</div>}>
+      <DatabaseContent />
+    </Suspense>
   );
 }
