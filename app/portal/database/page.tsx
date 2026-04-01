@@ -63,6 +63,14 @@ function DatabaseContent() {
   const [searchUser, setSearchUser] = useState("");
   const [resolving, setResolving] = useState(false);
 
+  function closeModal() {
+    setSelected(null);
+    setIsEditing(false);
+    if (searchParams.toString()) {
+      router.replace("/portal/database", { scroll: false });
+    }
+  }
+
   async function resolveReviewFlag() {
     if (!editedSelected) return;
     setResolving(true);
@@ -172,17 +180,17 @@ function DatabaseContent() {
               className="bg-transparent text-sm text-blue-900 placeholder:text-blue-400 outline-none w-full"
             />
             {searchTag && (
-              <button onClick={() => setSearchTag("")} className="text-blue-400 hover:text-blue-600 text-xs font-bold">✕</button>
+              <button onClick={() => setSearchTag("")} className="text-blue-400 hover:text-blue-600 text-xs font-bold cursor-pointer">✕</button>
             )}
           </div>
 
           {/* User filter */}
-          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px]">
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px] cursor-pointer">
             <span className="text-blue-400 text-sm">👤</span>
             <select
               value={searchUser}
               onChange={(e) => setSearchUser(e.target.value)}
-              className="bg-transparent text-sm text-blue-900 outline-none w-full"
+              className="bg-transparent text-sm text-blue-900 outline-none w-full cursor-pointer"
             >
               <option value="">All inspectors</option>
               {uniqueUsers.map((u) => (
@@ -195,7 +203,7 @@ function DatabaseContent() {
           {hasActiveSearch && (
             <button
               onClick={() => { setSearchTag(""); setSearchUser(""); }}
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer"
             >
               Clear search
             </button>
@@ -206,7 +214,7 @@ function DatabaseContent() {
         <div className="mt-4 flex flex-wrap gap-2">
           {(["all", "vegetation", "review", "processing"] as const).map((f) => (
             <button key={f} onClick={() => setFilterFlag(f)}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all ${
+              className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all cursor-pointer ${
                 filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
               }`}>
               {f === "all" ? "All flags" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
@@ -233,7 +241,7 @@ function DatabaseContent() {
               {hasActiveSearch ? "No matching submissions found" : filterFlag !== "all" ? "No submissions with this flag" : "No submissions yet"}
             </p>
             {hasActiveSearch && (
-              <button onClick={() => { setSearchTag(""); setSearchUser(""); }} className="mt-3 text-sm font-semibold text-blue-500 hover:underline">
+              <button onClick={() => { setSearchTag(""); setSearchUser(""); }} className="mt-3 text-sm font-semibold text-blue-500 hover:underline cursor-pointer">
                 Clear search
               </button>
             )}
@@ -255,9 +263,9 @@ function DatabaseContent() {
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-50">
+              <tbody className="divide-y divide-blue-200">
                 {filtered.map((s) => (
-                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
+                  <tr key={s.id} className="cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
                     <td className="px-5 py-3 text-blue-900/70 whitespace-nowrap">{formatDate(s.createdAt)}</td>
                     <td className="px-5 py-3 font-bold text-blue-950">{s.tagNumber || "—"}</td>
                     <td className="px-5 py-3 text-blue-900/80">{s.submittedBy}</td>
@@ -273,7 +281,11 @@ function DatabaseContent() {
                         {(s.flags ?? []).length === 0 ? <span className="text-blue-300 text-xs">—</span> : (s.flags ?? []).map((f) => <FlagBadge key={f} flag={f} />)}
                       </div>
                     </td>
-                    <td className="px-5 py-3"><span className="text-xs font-semibold text-blue-500 hover:underline">View →</span></td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex rounded-xl bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-900 ring-1 ring-blue-300 transition-colors hover:bg-blue-200 cursor-pointer">
+                        View →
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -284,14 +296,14 @@ function DatabaseContent() {
 
       {/* Detail Modal */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={closeModal}>
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-blue-950">Tag #{selected.tagNumber || "—"}</h2>
                 <p className="text-sm text-blue-900/60">{formatDate(selected.createdAt)} · {selected.submittedBy}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100">✕</button>
+              <button onClick={closeModal} className="rounded-full bg-blue-50 p-2 text-blue-900 hover:bg-blue-100 cursor-pointer">✕</button>
             </div>
 
             {(selected.flags ?? []).length > 0 && (
@@ -384,7 +396,7 @@ function DatabaseContent() {
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">Photos</p>
                 <div className="grid grid-cols-3 gap-2">
                   {allPhotos.map(({ url, cat }, i) => (
-                    <button key={i} onClick={() => setLightbox(url)} className="group relative overflow-hidden rounded-xl aspect-square bg-blue-50">
+                    <button key={i} onClick={() => setLightbox(url)} className="group relative overflow-hidden rounded-xl aspect-square bg-blue-50 cursor-pointer">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt={cat} className="h-full w-full object-cover transition group-hover:scale-105" />
                       <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white font-semibold">{cat}</span>
@@ -404,14 +416,14 @@ function DatabaseContent() {
                   {!isEditing ? (
                     <button 
                       onClick={() => setIsEditing(true)}
-                      className="flex-1 rounded-xl bg-blue-100 py-3 text-sm font-bold text-blue-900 ring-1 ring-blue-300 hover:bg-blue-200"
+                      className="flex-1 rounded-xl bg-blue-100 py-3 text-sm font-bold text-blue-900 ring-1 ring-blue-300 hover:bg-blue-200 cursor-pointer"
                     >
                       Edit Data
                     </button>
                   ) : (
                     <button 
                       onClick={() => setIsEditing(false)}
-                      className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200"
+                      className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200 cursor-pointer"
                     >
                       Cancel Edit
                     </button>
@@ -419,13 +431,13 @@ function DatabaseContent() {
                   <button 
                     onClick={resolveReviewFlag} 
                     disabled={resolving}
-                    className="flex-1 rounded-xl bg-purple-100 py-3 text-sm font-bold text-purple-800 ring-1 ring-purple-300 hover:bg-purple-200 disabled:opacity-50"
+                    className="flex-1 rounded-xl bg-purple-100 py-3 text-sm font-bold text-purple-800 ring-1 ring-purple-300 hover:bg-purple-200 disabled:opacity-50 cursor-pointer"
                   >
                     {resolving ? "Saving..." : (isEditing ? "Save & Resolve" : "Mark Review Resolved")}
                   </button>
                 </>
               )}
-              <button onClick={() => { setSelected(null); setIsEditing(false); }} className="flex-1 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
+              <button onClick={closeModal} className="flex-1 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100 cursor-pointer">Close</button>
             </div>
           </div>
         </div>
@@ -435,7 +447,7 @@ function DatabaseContent() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Photo" className="max-h-full max-w-full rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40">✕</button>
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40 cursor-pointer">✕</button>
         </div>
       )}
     </main>

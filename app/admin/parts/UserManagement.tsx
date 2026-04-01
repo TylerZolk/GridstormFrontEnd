@@ -64,7 +64,7 @@ export default function UserManagement({ isAdmin }: { isAdmin: boolean }) {
         <button
           type="button"
           onClick={load}
-          className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 transition"
+          className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 transition cursor-pointer"
         >
           Refresh
         </button>
@@ -107,7 +107,7 @@ export default function UserManagement({ isAdmin }: { isAdmin: boolean }) {
                   {isAdmin && u.username !== "Admin" ? (
                     <button
                       onClick={() => onRemove(u.username)}
-                      className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700 hover:bg-red-100 cursor-pointer"
                     >
                       Remove
                     </button>

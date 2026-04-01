@@ -76,7 +76,7 @@ export default function AdminCreateUser() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl bg-yellow-400 px-4 py-2 font-semibold text-black hover:bg-yellow-300 transition disabled:opacity-60"
+        className="w-full rounded-xl bg-yellow-400 px-4 py-2 font-semibold text-black hover:bg-yellow-300 transition disabled:opacity-60 cursor-pointer"
       >
         {loading ? "Adding..." : "Add user"}
       </button>

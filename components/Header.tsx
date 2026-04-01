@@ -26,7 +26,7 @@ export default async function Header() {
         </Link>
 
         <div className="flex items-center gap-4">
-          {user ? (
+          {user && (
             <>
               {String(user.role).toLowerCase().includes("admin") && (
                 <Link
@@ -44,13 +44,6 @@ export default async function Header() {
               </Link>
               <LogoutButton />
             </>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded-xl bg-yellow-400 px-6 py-3 text-base font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98]"
-            >
-              Login
-            </Link>
           )}
         </div>
       </div>

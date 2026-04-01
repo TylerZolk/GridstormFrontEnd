@@ -378,7 +378,7 @@ export default function SubmissionClient() {
         <button
           onClick={handleSubmit}
           disabled={totalFiles === 0 || busy}
-          className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all duration-150 hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           {STAGE_LABEL[stage]}
         </button>
@@ -455,7 +455,7 @@ function UploadCard({
                 <button
                   onClick={() => onRemove(i)}
                   disabled={disabled}
-                  className="ml-3 text-xs font-semibold text-red-400 hover:text-red-600 disabled:opacity-40"
+                  className="ml-3 text-xs font-semibold text-red-400 hover:text-red-600 disabled:opacity-40 cursor-pointer"
                 >
                   Remove
                 </button>

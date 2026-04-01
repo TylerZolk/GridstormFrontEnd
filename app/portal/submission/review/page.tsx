@@ -202,7 +202,7 @@ export default function SubmissionReviewPage() {
                   update("padCondition", edited.historicalSubmission.padCondition);
                   update("vegetationEncroachment", edited.historicalSubmission.vegetationEncroachment);
                 }}
-                className="rounded-xl bg-yellow-400 px-4 py-2 text-xs font-bold text-black shadow-sm transition hover:bg-yellow-300"
+                className="rounded-xl bg-yellow-400 px-4 py-2 text-xs font-bold text-black shadow-sm transition hover:bg-yellow-300 cursor-pointer"
               >
                 Copy Previous Values
               </button>
@@ -222,7 +222,7 @@ export default function SubmissionReviewPage() {
                   <span className="text-xs font-semibold text-blue-700">Tag Analysis</span>
                   <button
                     onClick={() => setLightbox(aiTagImg)}
-                    className="group relative overflow-hidden rounded-2xl ring-1 ring-blue-100 bg-blue-50 aspect-video"
+                    className="group relative overflow-hidden rounded-2xl ring-1 ring-blue-100 bg-blue-50 aspect-video cursor-pointer"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -243,7 +243,7 @@ export default function SubmissionReviewPage() {
                   <span className="text-xs font-semibold text-blue-700">Pole Analysis</span>
                   <button
                     onClick={() => setLightbox(aiOverviewImg)}
-                    className="group relative overflow-hidden rounded-2xl ring-1 ring-blue-100 bg-blue-50 aspect-video"
+                    className="group relative overflow-hidden rounded-2xl ring-1 ring-blue-100 bg-blue-50 aspect-video cursor-pointer"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -317,7 +317,7 @@ export default function SubmissionReviewPage() {
                 <button
                   key={String(val)}
                   onClick={() => update("vegetationEncroachment", val)}
-                  className={`flex-1 rounded-xl border py-3 text-sm font-bold transition-all ${
+                  className={`flex-1 rounded-xl border py-3 text-sm font-bold transition-all cursor-pointer ${
                     edited.vegetationEncroachment === val
                       ? val
                         ? "border-green-400 bg-green-100 text-green-900"
@@ -361,7 +361,7 @@ export default function SubmissionReviewPage() {
                 <button
                   key={key}
                   onClick={() => toggleFlag(key)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-semibold ring-1 transition-all ${
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold ring-1 transition-all cursor-pointer ${
                     extraFlags.includes(key)
                       ? meta.color
                       : "border-blue-200 bg-blue-50 text-blue-900 ring-blue-100 hover:bg-blue-100"
@@ -393,14 +393,14 @@ export default function SubmissionReviewPage() {
           <button
             onClick={() => router.push("/portal/submission")}
             disabled={saving || saved}
-            className="rounded-xl bg-blue-50 px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-100 active:scale-[0.98] disabled:opacity-50"
+            className="rounded-xl bg-blue-50 px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-100 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             ← Back
           </button>
           <button
             onClick={handleConfirm}
             disabled={saving || saved}
-            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {saved ? "Saved! Redirecting…" : saving ? "Saving…" : "Confirm & Save →"}
           </button>
@@ -422,7 +422,7 @@ export default function SubmissionReviewPage() {
           />
           <button
             onClick={() => setLightbox(null)}
-            className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40"
+            className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40 cursor-pointer"
           >
             ✕
           </button>
