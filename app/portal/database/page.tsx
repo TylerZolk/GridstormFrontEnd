@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type SubmissionFlag = "processing" | "vegetation" | "review";
 
@@ -47,16 +47,53 @@ function formatDate(ms: number) {
   return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function DatabasePage() {
+function DatabaseContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectId = searchParams.get("id");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Submission | null>(null);
+  const [editedSelected, setEditedSelected] = useState<Submission | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [filterFlag, setFilterFlag] = useState<SubmissionFlag | "all">("all");
   const [searchTag, setSearchTag] = useState("");
   const [searchUser, setSearchUser] = useState("");
+  const [resolving, setResolving] = useState(false);
+
+  async function resolveReviewFlag() {
+    if (!editedSelected) return;
+    setResolving(true);
+    try {
+      const newFlags = (editedSelected.flags || []).filter(f => f !== "review");
+      
+      const res = await fetch("/api/submissions/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: editedSelected.id, 
+          flags: newFlags,
+          poleCondition: editedSelected.poleCondition,
+          padCondition: editedSelected.padCondition,
+          vegetationEncroachment: editedSelected.vegetationEncroachment,
+          overviewNotes: editedSelected.overviewNotes,
+          baseNotes: editedSelected.baseNotes
+        })
+      });
+      if (!res.ok) throw new Error("Failed to update submission");
+      
+      const updatedSubmission = { ...editedSelected, flags: newFlags };
+      setSubmissions(prev => prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s));
+      setSelected(updatedSubmission);
+      setIsEditing(false);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setResolving(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/submissions/list")
@@ -66,10 +103,22 @@ export default function DatabasePage() {
         if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
         return data;
       })
-      .then((data) => { if (data) setSubmissions(data.submissions ?? []); })
+      .then((data) => { 
+        if (data) {
+          const list = data.submissions ?? [];
+          setSubmissions(list);
+          if (preselectId) {
+            const found = list.find((s: Submission) => s.id === preselectId);
+            if (found) {
+              setSelected(found);
+              setEditedSelected(found);
+            }
+          }
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, preselectId]);
 
   // Unique users for dropdown
   const uniqueUsers = useMemo(() => {
@@ -208,7 +257,7 @@ export default function DatabasePage() {
               </thead>
               <tbody className="divide-y divide-blue-50">
                 {filtered.map((s) => (
-                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50" onClick={() => setSelected(s)}>
+                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
                     <td className="px-5 py-3 text-blue-900/70 whitespace-nowrap">{formatDate(s.createdAt)}</td>
                     <td className="px-5 py-3 font-bold text-blue-950">{s.tagNumber || "—"}</td>
                     <td className="px-5 py-3 text-blue-900/80">{s.submittedBy}</td>
@@ -250,17 +299,85 @@ export default function DatabasePage() {
             )}
 
             <div className="mt-6 grid grid-cols-3 gap-4">
-              <Detail label="Pole Condition"><ConditionBadge value={selected.poleCondition} /></Detail>
-              <Detail label="Pad Condition"><ConditionBadge value={selected.padCondition} /></Detail>
+              <Detail label="Pole Condition">
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.poleCondition}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, poleCondition: e.target.value } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <ConditionBadge value={selected.poleCondition} />
+                )}
+              </Detail>
+              <Detail label="Pad Condition">
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.padCondition}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, padCondition: e.target.value } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <ConditionBadge value={selected.padCondition} />
+                )}
+              </Detail>
               <Detail label="Vegetation">
-                <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
-                  {selected.vegetationEncroachment ? "Yes" : "No"}
-                </span>
+                {isEditing ? (
+                  <select
+                    value={editedSelected?.vegetationEncroachment ? "Yes" : "No"}
+                    onChange={(e) => setEditedSelected(prev => prev ? { ...prev, vegetationEncroachment: e.target.value === "Yes" } : prev)}
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    <option>Yes</option>
+                    <option>No</option>
+                  </select>
+                ) : (
+                  <span className={`font-bold ${selected.vegetationEncroachment ? "text-green-700" : "text-blue-950"}`}>
+                    {selected.vegetationEncroachment ? "Yes" : "No"}
+                  </span>
+                )}
               </Detail>
             </div>
 
-            {selected.overviewNotes && <div className="mt-5"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p><p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p></div>}
-            {selected.baseNotes && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p><p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p></div>}
+            <div className="mt-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Overview Notes</p>
+              {isEditing ? (
+                <textarea
+                  value={editedSelected?.overviewNotes ?? ""}
+                  onChange={(e) => setEditedSelected(prev => prev ? { ...prev, overviewNotes: e.target.value } : prev)}
+                  className="mt-1 w-full rounded-md border border-blue-200 bg-white p-2 text-sm text-blue-950 outline-none focus:ring-2 focus:ring-blue-300"
+                  rows={3}
+                />
+              ) : (
+                selected.overviewNotes ? (
+                  <p className="mt-1 text-sm text-blue-900">{selected.overviewNotes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-blue-400 italic">No overview notes.</p>
+                )
+              )}
+            </div>
+            
+            <div className="mt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p>
+              {isEditing ? (
+                <textarea
+                  value={editedSelected?.baseNotes ?? ""}
+                  onChange={(e) => setEditedSelected(prev => prev ? { ...prev, baseNotes: e.target.value } : prev)}
+                  className="mt-1 w-full rounded-md border border-blue-200 bg-white p-2 text-sm text-blue-950 outline-none focus:ring-2 focus:ring-blue-300"
+                  rows={3}
+                />
+              ) : (
+                selected.baseNotes ? (
+                  <p className="mt-1 text-sm text-blue-900">{selected.baseNotes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-blue-400 italic">No base notes.</p>
+                )
+              )}
+            </div>
 
             {allPhotos.length > 0 && (
               <div className="mt-6">
@@ -281,7 +398,35 @@ export default function DatabasePage() {
               <p className="mt-6 text-xs text-blue-400 italic">No photos stored for this submission.</p>
             )}
 
-            <button onClick={() => setSelected(null)} className="mt-8 w-full rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
+            <div className="mt-8 flex gap-3 flex-wrap">
+              {selected.flags?.includes("review") && (
+                <>
+                  {!isEditing ? (
+                    <button 
+                      onClick={() => setIsEditing(true)}
+                      className="flex-1 rounded-xl bg-blue-100 py-3 text-sm font-bold text-blue-900 ring-1 ring-blue-300 hover:bg-blue-200"
+                    >
+                      Edit Data
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setIsEditing(false)}
+                      className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button 
+                    onClick={resolveReviewFlag} 
+                    disabled={resolving}
+                    className="flex-1 rounded-xl bg-purple-100 py-3 text-sm font-bold text-purple-800 ring-1 ring-purple-300 hover:bg-purple-200 disabled:opacity-50"
+                  >
+                    {resolving ? "Saving..." : (isEditing ? "Save & Resolve" : "Mark Review Resolved")}
+                  </button>
+                </>
+              )}
+              <button onClick={() => { setSelected(null); setIsEditing(false); }} className="flex-1 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 hover:bg-blue-100">Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -303,5 +448,13 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
       <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">{label}</p>
       <div className="mt-1">{children}</div>
     </div>
+  );
+}
+
+export default function DatabasePage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-blue-900 font-bold">Loading database...</div>}>
+      <DatabaseContent />
+    </Suspense>
   );
 }

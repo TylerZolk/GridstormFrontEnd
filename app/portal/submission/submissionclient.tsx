@@ -81,14 +81,7 @@ async function compressImage(file: File, maxSizeBytes: number): Promise<File> {
   return new File([blob], file.name, { type: "image/jpeg" });
 }
 
-/** Best-effort condition string from vegetation % */
-function vegToCondition(pct: number): string {
-  if (pct >= 60) return "Critical";
-  if (pct >= 45) return "Poor";
-  if (pct >= 30) return "Fair";
-  if (pct >= 15) return "Good";
-  return "Excellent";
-}
+
 
 /** POST a single file to a PolePad AI endpoint via the Next.js proxy, compressing first. */
 async function callPolePadEndpoint(
@@ -212,7 +205,7 @@ export default function SubmissionClient() {
           );
 
           tagNumber          = (tagResult.asset_id as string) ?? "UNKNOWN";
-          tagVegPct          = (tagResult.vegetation_percent as number) ?? 0;
+          tagVegPct          = ((tagResult.vegetation_percent as number) ?? 0) * 100;
           tagImageBase64     = tagResult.image_base64 as string | undefined;
           tagDetectionStatus = tagResult.detection_status as string | undefined;
         } catch (e) {
@@ -239,25 +232,41 @@ export default function SubmissionClient() {
             overviewFile
           );
 
-          poleVegPct          = (poleResult.vegetation_percent as number) ?? 0;
+          poleVegPct          = ((poleResult.vegetation_percent as number) ?? 0) * 100;
           poleFlagged         = (poleResult.flagged as boolean) ?? false;
           poleImageBase64     = poleResult.image_base64 as string | undefined;
           poleDetectionStatus = poleResult.detection_status as string | undefined;
-          poleCondition       = vegToCondition(poleVegPct);
         } catch (e) {
           console.warn("Pole analysis failed:", e);
+        }
+      }
+
+      // ── 3.5 Fetch historical data if tag found ────────────────────────
+      let historicalSubmission = null;
+      if (tagNumber !== "UNKNOWN" && tagNumber !== "UNREADABLE") {
+        try {
+          const histRes = await fetch(`/api/submissions/by-tag?tag=${encodeURIComponent(tagNumber)}`);
+          if (histRes.ok) {
+            const histJson = await histRes.json();
+            if (histJson.submission) {
+              historicalSubmission = histJson.submission;
+              poleCondition = historicalSubmission.poleCondition; // Inherit condition
+            }
+          }
+        } catch (e) {
+          console.warn("History fetch failed:", e);
         }
       }
 
       // ── 4. Build review payload and hand off ────────────────────────────
       setStage("done");
 
-      const vegetationEncroachment = poleFlagged || tagVegPct >= 35;
+      const vegetationEncroachment = poleFlagged || tagVegPct >= 35 || poleVegPct >= 35;
 
       const reviewPayload = {
         tagNumber,
         poleCondition,
-        padCondition: "Fair",          // no pad endpoint yet — inspector edits
+        padCondition: historicalSubmission?.padCondition || "Fair",
         overviewNotes: poleDetectionStatus
           ? `Pole detection: ${poleDetectionStatus}. Vegetation: ${poleVegPct.toFixed(1)}%.`
           : "No pole analysis available.",
@@ -282,6 +291,7 @@ export default function SubmissionClient() {
           tag:      tagImageBase64,
           overview: poleImageBase64,
         },
+        historicalSubmission, // Pass historical data to the review page
       };
 
       sessionStorage.setItem("submissionReview", JSON.stringify(reviewPayload));

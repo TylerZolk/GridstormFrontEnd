@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getSessionUser();
+  if (user) {
+    redirect("/portal");
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-14 bg-white">
       <div className="rounded-3xl border bg-white p-10 shadow-sm">

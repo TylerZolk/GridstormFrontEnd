@@ -37,14 +37,6 @@ export default async function AdminPage() {
                     {session?.role}
                   </span>
                 </div>
-
-                {/* Back to Portal button */}
-                <Link
-                  href="/portal"
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
-                >
-                  ← Portal
-                </Link>
               </div>
             </div>
 

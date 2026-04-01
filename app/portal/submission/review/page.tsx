@@ -13,6 +13,7 @@ type ReviewData = {
   fileCounts: { tag: number; overview: number; base: number; pad: number };
   photoUrls?: { tag: string[]; overview: string[]; base: string[]; pad: string[] };
   aiImages?: { tag?: string; overview?: string };
+  historicalSubmission?: any;
 };
 
 type FlagKey = "review";
@@ -40,6 +41,36 @@ export default function SubmissionReviewPage() {
     setData(parsed);
     setEdited(parsed);
   }, [router]);
+
+  useEffect(() => {
+    if (!edited || !edited.tagNumber || edited.tagNumber === "UNKNOWN" || edited.tagNumber === "UNREADABLE") return;
+    
+    const timeoutId = setTimeout(async () => {
+      // Don't refetch if it exactly matches the data.tagNumber and we already loaded its history originally
+      if (data && edited.tagNumber === data.tagNumber && data.historicalSubmission) {
+        if (!edited.historicalSubmission) {
+          setEdited(p => p ? { ...p, historicalSubmission: data.historicalSubmission } : p);
+        }
+        return;
+      }
+      
+      try {
+        const histRes = await fetch(`/api/submissions/by-tag?tag=${encodeURIComponent(edited.tagNumber)}`);
+        if (histRes.ok) {
+          const histJson = await histRes.json();
+          if (histJson.submission) {
+            setEdited(p => p ? { ...p, historicalSubmission: histJson.submission } : p);
+          } else {
+            setEdited(p => p ? { ...p, historicalSubmission: undefined } : p);
+          }
+        }
+      } catch (e) {
+        console.warn("History fetch failed:", e);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [edited?.tagNumber, data]);
 
   function update<K extends keyof ReviewData>(key: K, value: ReviewData[K]) {
     setEdited((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -138,6 +169,46 @@ export default function SubmissionReviewPage() {
             )}
           </div>
         </div>
+
+        {/* ── Historical Comparison ── */}
+        {edited.historicalSubmission && (
+          <div className="mt-8 rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-6">
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-yellow-800 flex items-center gap-2">
+              <span>⚠️ Duplicate Tag Detected!</span>
+            </h2>
+            <p className="mt-2 text-sm text-yellow-900">
+              A previous inspection for tag <strong>#{edited.tagNumber}</strong> was completed on{" "}
+              {new Date(edited.historicalSubmission.createdAt).toLocaleDateString()} by{" "}
+              {edited.historicalSubmission.submittedBy}.
+            </p>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="rounded-xl bg-white p-3 shadow-sm">
+                <p className="text-[10px] font-bold uppercase text-yellow-600">Prev. Pole</p>
+                <p className="mt-1 text-sm font-semibold">{edited.historicalSubmission.poleCondition}</p>
+              </div>
+              <div className="rounded-xl bg-white p-3 shadow-sm">
+                <p className="text-[10px] font-bold uppercase text-yellow-600">Prev. Pad</p>
+                <p className="mt-1 text-sm font-semibold">{edited.historicalSubmission.padCondition}</p>
+              </div>
+              <div className="rounded-xl bg-white p-3 shadow-sm">
+                <p className="text-[10px] font-bold uppercase text-yellow-600">Prev. Veg</p>
+                <p className="mt-1 text-sm font-semibold">{edited.historicalSubmission.vegetationEncroachment ? "Yes" : "No"}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => {
+                  update("poleCondition", edited.historicalSubmission.poleCondition);
+                  update("padCondition", edited.historicalSubmission.padCondition);
+                  update("vegetationEncroachment", edited.historicalSubmission.vegetationEncroachment);
+                }}
+                className="rounded-xl bg-yellow-400 px-4 py-2 text-xs font-bold text-black shadow-sm transition hover:bg-yellow-300"
+              >
+                Copy Previous Values
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── AI Annotated Images ── */}
         {(aiTagImg || aiOverviewImg) && (

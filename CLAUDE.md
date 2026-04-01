@@ -194,13 +194,3 @@ The `Admin` account (`isProtected: true`) cannot be deleted via the admin panel.
 
 ---
 
-## Known Limitations / Production Hardening Required
-
-- **S3 CORS**: `allowedOrigins: ["*"]` — tighten to your Vercel domain in `infra/lib/polepad-stack.ts`.
-- **`NEXT_PUBLIC_POLEPAD_URL`**: Set this env var; don't rely on the hardcoded fallback tunnel URL.
-- **Pad condition AI**: No endpoint exists — always defaults to `"Fair"`, inspector must correct manually.
-- **DynamoDB pagination**: `listSubmissions` and `listUsers` use a full `Scan` with no pagination — will degrade at scale.
-- **`updateSubmissionFlags`**: Uses a `Scan` to find the item by `id` — inefficient at scale; consider adding `id` as a GSI.
-- **No rate limiting** on any API route.
-- **No DynamoDB Point-in-Time Recovery** in the CDK stack.
-- **No CloudWatch monitoring** configured.
