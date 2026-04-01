@@ -24,6 +24,12 @@ const FLAG_META: Record<FlagKey, { label: string; color: string }> = {
   review: { label: "Flag for Review", color: "bg-purple-100 text-purple-800 ring-purple-300" },
 };
 
+const GRID_STYLE = {
+  backgroundImage:
+    "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+  backgroundSize: "48px 48px",
+};
+
 export default function SubmissionReviewPage() {
   const router = useRouter();
   const [data, setData]       = useState<ReviewData | null>(null);
@@ -44,16 +50,15 @@ export default function SubmissionReviewPage() {
 
   useEffect(() => {
     if (!edited || !edited.tagNumber || edited.tagNumber === "UNKNOWN" || edited.tagNumber === "UNREADABLE") return;
-    
+
     const timeoutId = setTimeout(async () => {
-      // Don't refetch if it exactly matches the data.tagNumber and we already loaded its history originally
       if (data && edited.tagNumber === data.tagNumber && data.historicalSubmission) {
         if (!edited.historicalSubmission) {
           setEdited(p => p ? { ...p, historicalSubmission: data.historicalSubmission } : p);
         }
         return;
       }
-      
+
       try {
         const histRes = await fetch(`/api/submissions/by-tag?tag=${encodeURIComponent(edited.tagNumber)}`);
         if (histRes.ok) {
@@ -117,9 +122,18 @@ export default function SubmissionReviewPage() {
 
   if (!edited) {
     return (
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="rounded-3xl bg-white p-10 shadow-lg text-blue-900">Loading…</div>
-      </main>
+      <div className="min-h-screen bg-gray-50">
+        <div className="relative overflow-hidden bg-blue-950">
+          <div className="absolute inset-0 opacity-[0.04]" style={GRID_STYLE} />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
+          <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-8">
+            <h1 className="text-4xl font-extrabold tracking-tight text-white">Submission Review</h1>
+          </div>
+        </div>
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-sm text-blue-900">Loading…</div>
+        </div>
+      </div>
     );
   }
 
@@ -142,37 +156,49 @@ export default function SubmissionReviewPage() {
   const aiOverviewImg = edited.aiImages?.overview;
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <div className="rounded-3xl bg-white p-10 shadow-lg">
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Dark Header Section ── */}
+      <div className="relative overflow-hidden bg-blue-950">
+        <div className="absolute inset-0 opacity-[0.04]" style={GRID_STYLE} />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
 
-        {/* ── Header ── */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">
-              Submission Review
-            </h1>
-            <p className="mt-2 text-blue-900/70">
-              AI results are pre-filled below. Correct anything before confirming.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {autoFlags.includes("vegetation") && (
-              <FlagPill color="bg-green-100 text-green-800 ring-green-300" label="🌿 Vegetation" />
-            )}
-            {extraFlags.includes("review") && (
-              <FlagPill color="bg-purple-100 text-purple-800 ring-purple-300" label="🔍 Review" />
-            )}
-            {autoFlags.length === 0 && extraFlags.length === 0 && (
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-500 ring-1 ring-blue-100">
-                No flags
-              </span>
-            )}
+        <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-700/50 bg-blue-900/60 px-3 py-1 text-xs font-medium text-blue-200 backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                Review &amp; Confirm
+              </div>
+              <h1 className="text-4xl font-extrabold tracking-tight text-white">
+                Submission Review
+              </h1>
+              <p className="mt-1.5 text-blue-200/80">
+                AI results are pre-filled below. Correct anything before confirming.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {autoFlags.includes("vegetation") && (
+                <FlagPill color="bg-green-100 text-green-800 ring-green-300" label="🌿 Vegetation" />
+              )}
+              {extraFlags.includes("review") && (
+                <FlagPill color="bg-purple-100 text-purple-800 ring-purple-300" label="🔍 Review" />
+              )}
+              {autoFlags.length === 0 && extraFlags.length === 0 && (
+                <span className="rounded-full border border-blue-700/40 bg-blue-900/50 px-3 py-1 text-xs font-semibold text-blue-300">
+                  No flags
+                </span>
+              )}
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-6">
 
         {/* ── Historical Comparison ── */}
         {edited.historicalSubmission && (
-          <div className="mt-8 rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-6">
+          <div className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-6">
             <h2 className="text-sm font-extrabold uppercase tracking-wider text-yellow-800 flex items-center gap-2">
               <span>⚠️ Duplicate Tag Detected!</span>
             </h2>
@@ -195,7 +221,7 @@ export default function SubmissionReviewPage() {
                 <p className="mt-1 text-sm font-semibold">{edited.historicalSubmission.vegetationEncroachment ? "Yes" : "No"}</p>
               </div>
             </div>
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4">
               <button
                 onClick={() => {
                   update("poleCondition", edited.historicalSubmission.poleCondition);
@@ -212,8 +238,8 @@ export default function SubmissionReviewPage() {
 
         {/* ── AI Annotated Images ── */}
         {(aiTagImg || aiOverviewImg) && (
-          <div className="mt-8">
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">
+          <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-4">
               AI Annotated Images
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -264,11 +290,11 @@ export default function SubmissionReviewPage() {
         )}
 
         {/* ── Photo count summary ── */}
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {(["tag", "overview", "base", "pad"] as const).map((cat) => (
             <div
               key={cat}
-              className="rounded-2xl bg-blue-50 px-5 py-4 text-center ring-1 ring-blue-100"
+              className="rounded-2xl border border-blue-100 bg-white px-5 py-4 text-center shadow-sm"
             >
               <p className="text-2xl font-extrabold text-blue-950">
                 {edited.fileCounts[cat]}
@@ -281,78 +307,81 @@ export default function SubmissionReviewPage() {
         </div>
 
         {/* ── AI-prefilled fields (all editable) ── */}
-        <div className="mt-10 grid gap-8 md:grid-cols-2">
-          <Field label="Tag Number" aiGenerated>
-            <input
-              type="text"
-              value={edited.tagNumber}
-              onChange={(e) => update("tagNumber", e.target.value)}
-              className="input"
-            />
-          </Field>
+        <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-6">Inspection Details</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="Tag Number" aiGenerated>
+              <input
+                type="text"
+                value={edited.tagNumber}
+                onChange={(e) => update("tagNumber", e.target.value)}
+                className="input"
+              />
+            </Field>
 
-          <Field label="Pole Condition" aiGenerated>
-            <select
-              value={edited.poleCondition}
-              onChange={(e) => update("poleCondition", e.target.value)}
-              className="input"
-            >
-              {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </Field>
+            <Field label="Pole Condition" aiGenerated>
+              <select
+                value={edited.poleCondition}
+                onChange={(e) => update("poleCondition", e.target.value)}
+                className="input"
+              >
+                {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </Field>
 
-          <Field label="Pad-Mounted Equipment Condition" aiGenerated>
-            <select
-              value={edited.padCondition}
-              onChange={(e) => update("padCondition", e.target.value)}
-              className="input"
-            >
-              {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </Field>
+            <Field label="Pad-Mounted Equipment Condition" aiGenerated>
+              <select
+                value={edited.padCondition}
+                onChange={(e) => update("padCondition", e.target.value)}
+                className="input"
+              >
+                {CONDITION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </Field>
 
-          <Field label="Vegetation Encroachment" aiGenerated>
-            <div className="flex gap-3">
-              {[true, false].map((val) => (
-                <button
-                  key={String(val)}
-                  onClick={() => update("vegetationEncroachment", val)}
-                  className={`flex-1 rounded-xl border py-3 text-sm font-bold transition-all cursor-pointer ${
-                    edited.vegetationEncroachment === val
-                      ? val
-                        ? "border-green-400 bg-green-100 text-green-900"
-                        : "border-blue-400 bg-blue-100 text-blue-900"
-                      : "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
-                  }`}
-                >
-                  {val ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
-          </Field>
+            <Field label="Vegetation Encroachment" aiGenerated>
+              <div className="flex gap-3">
+                {[true, false].map((val) => (
+                  <button
+                    key={String(val)}
+                    onClick={() => update("vegetationEncroachment", val)}
+                    className={`flex-1 rounded-xl border py-3 text-sm font-bold transition-all cursor-pointer ${
+                      edited.vegetationEncroachment === val
+                        ? val
+                          ? "border-green-400 bg-green-100 text-green-900"
+                          : "border-blue-400 bg-blue-100 text-blue-900"
+                        : "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
+                    }`}
+                  >
+                    {val ? "Yes" : "No"}
+                  </button>
+                ))}
+              </div>
+            </Field>
 
-          <Field label="Overview Notes" aiGenerated>
-            <textarea
-              rows={3}
-              value={edited.overviewNotes}
-              onChange={(e) => update("overviewNotes", e.target.value)}
-              className="input resize-none"
-            />
-          </Field>
+            <Field label="Overview Notes" aiGenerated>
+              <textarea
+                rows={3}
+                value={edited.overviewNotes}
+                onChange={(e) => update("overviewNotes", e.target.value)}
+                className="input resize-none"
+              />
+            </Field>
 
-          <Field label="Base Notes" aiGenerated>
-            <textarea
-              rows={3}
-              value={edited.baseNotes}
-              onChange={(e) => update("baseNotes", e.target.value)}
-              className="input resize-none"
-            />
-          </Field>
+            <Field label="Base Notes" aiGenerated>
+              <textarea
+                rows={3}
+                value={edited.baseNotes}
+                onChange={(e) => update("baseNotes", e.target.value)}
+                className="input resize-none"
+              />
+            </Field>
+          </div>
         </div>
 
         {/* ── Inspector flags ── */}
-        <div className="mt-10">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-500 mb-3">
+        <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-4">
             Inspector Flags
           </h2>
           <div className="flex flex-wrap gap-3">
@@ -377,30 +406,30 @@ export default function SubmissionReviewPage() {
 
         {/* ── Diff notice ── */}
         {hasChanges && (
-          <p className="mt-6 text-sm font-semibold text-yellow-600">
+          <p className="text-sm font-semibold text-yellow-600">
             ✎ You have made changes from the AI&apos;s original output.
           </p>
         )}
 
         {error && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {/* ── Actions ── */}
-        <div className="mt-10 flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 pb-6">
           <button
             onClick={() => router.push("/portal/submission")}
             disabled={saving || saved}
-            className="rounded-xl bg-blue-50 px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-100 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            className="rounded-xl bg-white px-7 py-3 text-sm font-bold text-blue-950 ring-1 ring-blue-200 transition hover:bg-blue-50 active:scale-[0.98] disabled:opacity-50 cursor-pointer shadow-sm"
           >
             ← Back
           </button>
           <button
             onClick={handleConfirm}
             disabled={saving || saved}
-            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all hover:bg-yellow-300 hover:shadow-md active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            className="rounded-xl bg-yellow-400 px-7 py-3 text-sm font-bold text-black shadow-sm transition-all hover:bg-yellow-300 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {saved ? "Saved! Redirecting…" : saving ? "Saving…" : "Confirm & Save →"}
           </button>
@@ -445,7 +474,7 @@ export default function SubmissionReviewPage() {
           box-shadow: 0 0 0 2px #dbeafe;
         }
       `}</style>
-    </main>
+    </div>
   );
 }
 

@@ -322,7 +322,7 @@ export default function SubmissionClient() {
       </div>
 
       {/* AI backend notice */}
-      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-3 text-sm text-blue-800">
+      <div className="rounded-2xl border border-blue-100 bg-white px-5 py-3 text-sm text-blue-800 shadow-sm">
         <span className="font-semibold">PolePad AI</span> will read the asset
         tag and analyse vegetation coverage. Results are pre-filled on the next
         screen — you can correct anything before saving.
@@ -369,7 +369,7 @@ export default function SubmissionClient() {
       )}
 
       {/* Submit bar */}
-      <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-6 py-4 ring-1 ring-blue-200">
+      <div className="flex items-center justify-between rounded-2xl bg-white border border-blue-100 px-6 py-4 shadow-sm">
         <p className="text-sm text-blue-900">
           {totalFiles === 0
             ? "No files selected yet."

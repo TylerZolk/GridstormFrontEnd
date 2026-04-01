@@ -49,56 +49,85 @@ export default function LoginPage() {
       setErr(e?.name === "AbortError" ? "Login timed out." : (e?.message || "Network error"));
     } finally {
       clearTimeout(timeout);
-      setLoading(false); // ✅ ALWAYS stops “Signing in...”
+      setLoading(false); // ✅ ALWAYS stops "Signing in..."
     }
   }
 
   return (
-    <main className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-white px-4">
-      <div className="w-full max-w-md rounded-2xl border-2 border-blue-600 bg-white p-8 shadow-md">
-        <h1 className="text-3xl font-bold text-blue-900">Sign in</h1>
-        <p className="mt-2 text-sm text-blue-800">Enter your username and password.</p>
+    <main className="relative min-h-[calc(100vh-80px)] flex items-center justify-center bg-blue-950 overflow-hidden px-4 py-16">
+      {/* Subtle grid pattern overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="text-sm font-semibold text-blue-900">Username</label>
-            <input
-              className="mt-1 w-full rounded-xl border border-blue-200 px-3 py-2 text-blue-900 placeholder:text-blue-400 outline-none focus:ring-2 focus:ring-blue-500"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
-          </div>
+      {/* Yellow accent line at top */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
 
-          <div>
-            <label className="text-sm font-semibold text-blue-900">Password</label>
-            <input
-              type="password"
-              className="mt-1 w-full rounded-xl border border-blue-200 px-3 py-2 text-blue-900 placeholder:text-blue-400 outline-none focus:ring-2 focus:ring-blue-500"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
+      {/* Ambient glow */}
+      <div className="absolute inset-x-0 top-1/3 h-64 bg-blue-500/5 blur-3xl pointer-events-none" />
 
-          {err && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {err}
+      <div className="relative w-full max-w-md">
+        {/* Badge */}
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-700/50 bg-blue-900/60 px-4 py-1.5 text-sm font-medium text-blue-200 backdrop-blur-sm">
+          <span className="h-2 w-2 rounded-full bg-yellow-400" />
+          Authorized Personnel Only
+        </div>
+
+        {/* Card */}
+        <div className="rounded-2xl border border-blue-700/40 bg-blue-900/50 p-8 shadow-2xl backdrop-blur-sm">
+          <h1 className="text-3xl font-extrabold tracking-tight text-white">Sign in</h1>
+          <p className="mt-2 text-sm text-blue-200/80">
+            Enter your credentials to access the portal.
+          </p>
+
+          <form onSubmit={onSubmit} className="mt-7 space-y-5">
+            <div>
+              <label className="text-sm font-semibold text-blue-200">Username</label>
+              <input
+                className="mt-1.5 w-full rounded-xl border border-blue-700/50 bg-blue-800/50 px-4 py-2.5 text-white placeholder:text-blue-500 outline-none transition focus:border-yellow-400/50 focus:ring-2 focus:ring-yellow-400/20"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                placeholder="Enter username"
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-yellow-400 px-4 py-2 font-semibold text-black hover:bg-yellow-300 transition disabled:opacity-60 cursor-pointer"
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
+            <div>
+              <label className="text-sm font-semibold text-blue-200">Password</label>
+              <input
+                type="password"
+                className="mt-1.5 w-full rounded-xl border border-blue-700/50 bg-blue-800/50 px-4 py-2.5 text-white placeholder:text-blue-500 outline-none transition focus:border-yellow-400/50 focus:ring-2 focus:ring-yellow-400/20"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="Enter password"
+              />
+            </div>
 
-          <div className="text-xs text-blue-800">
-            No sign-up. Accounts are created by an administrator.
-          </div>
-        </form>
+            {err && (
+              <div className="rounded-xl border border-red-500/30 bg-red-900/30 px-4 py-2.5 text-sm text-red-300">
+                {err}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black shadow-lg shadow-yellow-400/20 transition-all duration-150 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-xl hover:shadow-yellow-400/30 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+
+            <p className="text-xs text-blue-500">
+              No sign-up. Accounts are created by an administrator.
+            </p>
+          </form>
+        </div>
       </div>
     </main>
   );

@@ -5,6 +5,12 @@ import { listSubmissions } from "@/lib/submissions";
 
 export const dynamic = "force-dynamic";
 
+const GRID_STYLE = {
+  backgroundImage:
+    "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+  backgroundSize: "48px 48px",
+};
+
 export default async function PortalDashboardPage() {
   const user = await getSessionUser();
 
@@ -29,47 +35,57 @@ export default async function PortalDashboardPage() {
   }
 
   const uniqueUsers = new Set(submissions.map((s) => s.submittedBy)).size;
-
   const recentSubmissions = submissions.slice(0, 5);
 
   return (
     <RequireAuth>
-      <main className="bg-white min-h-screen">
-        <div className="mx-auto max-w-6xl px-6 py-10">
+      <div className="min-h-screen bg-gray-50">
 
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
-            <div>
-              <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">
-                Dashboard
-              </h1>
-              <p className="mt-1 text-blue-800">
-                Welcome back, <span className="font-semibold">{user?.username}</span>.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-blue-800">Role</span>
-              <span className="rounded-full bg-blue-50 px-4 py-1.5 text-sm font-bold text-blue-900 ring-1 ring-blue-200">
+        {/* ── Dark Header Section ── */}
+        <div className="relative overflow-hidden bg-blue-950">
+          <div className="absolute inset-0 opacity-[0.04]" style={GRID_STYLE} />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
+
+          <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-700/50 bg-blue-900/60 px-3 py-1 text-xs font-medium text-blue-200 backdrop-blur-sm">
+                  <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                  Field Inspection Portal
+                </div>
+                <h1 className="text-4xl font-extrabold tracking-tight text-white">
+                  Dashboard
+                </h1>
+                <p className="mt-1.5 text-blue-200/80">
+                  Welcome back,{" "}
+                  <span className="font-semibold text-yellow-400">{user?.username}</span>.
+                </p>
+              </div>
+              <span className="rounded-full border border-blue-700/40 bg-blue-900/50 px-4 py-1.5 text-sm font-bold text-blue-200">
                 {user?.role}
               </span>
             </div>
           </div>
+        </div>
+
+        {/* ── Content ── */}
+        <div className="mx-auto max-w-6xl px-6 py-10">
 
           {/* Quick Actions */}
           <div className="grid gap-5 md:grid-cols-2 mb-10">
             <Link
               href="/portal/submission"
-              className="group rounded-2xl bg-blue-600 p-8 shadow-md transition hover:-translate-y-[2px] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="group rounded-2xl bg-blue-900 p-8 shadow-md transition hover:-translate-y-[2px] hover:shadow-lg hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-2">New</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-300 mb-2">New</p>
                   <h2 className="text-2xl font-bold text-white">Submit Inspection</h2>
-                  <p className="mt-2 text-sm text-blue-200">
+                  <p className="mt-2 text-sm text-blue-300">
                     Upload photos and run AI analysis on a new site.
                   </p>
                 </div>
-                <span className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold text-white transition group-hover:bg-white/25">
+                <span className="rounded-xl bg-yellow-400/20 px-4 py-2 text-sm font-bold text-yellow-300 transition group-hover:bg-yellow-400/30">
                   Open →
                 </span>
               </div>
@@ -77,7 +93,7 @@ export default async function PortalDashboardPage() {
 
             <Link
               href="/portal/database"
-              className="group rounded-2xl bg-white p-8 shadow-md ring-1 ring-blue-100 transition hover:-translate-y-[2px] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="group rounded-2xl border border-blue-100 bg-white p-8 shadow-md transition hover:-translate-y-[2px] hover:shadow-lg hover:border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -97,7 +113,7 @@ export default async function PortalDashboardPage() {
           {/* Stats */}
           {!statsError && (
             <>
-              <h2 className="text-lg font-bold text-blue-950 mb-4">Overview</h2>
+              <h2 className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-4">Overview</h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-10">
                 <StatCard label="Total Submissions" value={total} color="blue" />
                 <StatCard label="Unique Inspectors" value={uniqueUsers} color="indigo" />
@@ -105,18 +121,16 @@ export default async function PortalDashboardPage() {
                 <StatCard label="Vegetation Flagged" value={withVegetation} color="green" />
               </div>
 
-              {/* Condition breakdown + recent */}
               <div className="grid gap-6 md:grid-cols-2">
-
                 {/* Condition Breakdown */}
-                <div className="rounded-2xl bg-white p-6 ring-1 ring-blue-100 shadow-sm">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-blue-500 mb-4">
+                <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-4">
                     Pole Condition Breakdown
                   </h3>
                   {Object.keys(conditionCounts).length === 0 ? (
                     <p className="text-sm text-blue-400 italic">No data yet.</p>
                   ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {(["Excellent", "Good", "Fair", "Poor", "Critical"] as const).map((cond) => {
                         const count = conditionCounts[cond] ?? 0;
                         const pct = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -147,8 +161,8 @@ export default async function PortalDashboardPage() {
                 </div>
 
                 {/* Recent Activity */}
-                <div className="rounded-2xl bg-white p-6 ring-1 ring-blue-100 shadow-sm">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-blue-500 mb-4">
+                <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-4">
                     Recent Submissions
                   </h3>
                   {recentSubmissions.length === 0 ? (
@@ -186,7 +200,6 @@ export default async function PortalDashboardPage() {
                     </Link>
                   )}
                 </div>
-
               </div>
 
               {/* Processing notice */}
@@ -204,17 +217,17 @@ export default async function PortalDashboardPage() {
             </div>
           )}
         </div>
-      </main>
+      </div>
     </RequireAuth>
   );
 }
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   const colorMap: Record<string, string> = {
-    blue: "bg-blue-600 text-white",
-    indigo: "bg-indigo-500 text-white",
-    purple: "bg-purple-500 text-white",
-    green: "bg-green-500 text-white",
+    blue:   "bg-blue-900 text-white",
+    indigo: "bg-indigo-600 text-white",
+    purple: "bg-purple-600 text-white",
+    green:  "bg-green-600 text-white",
   };
   return (
     <div className={`rounded-2xl p-5 shadow-sm ${colorMap[color]}`}>
@@ -227,10 +240,10 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 function ConditionDot({ condition }: { condition: string }) {
   const map: Record<string, string> = {
     Excellent: "bg-green-400",
-    Good: "bg-blue-400",
-    Fair: "bg-yellow-400",
-    Poor: "bg-orange-400",
-    Critical: "bg-red-500",
+    Good:      "bg-blue-400",
+    Fair:      "bg-yellow-400",
+    Poor:      "bg-orange-400",
+    Critical:  "bg-red-500",
   };
   const cls = map[condition] ?? "bg-gray-300";
   return (

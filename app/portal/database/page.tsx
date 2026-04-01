@@ -33,6 +33,12 @@ const FLAG_META: Record<SubmissionFlag, { label: string; color: string; emoji: s
   review:     { label: "Review",      color: "bg-purple-100 text-purple-800 ring-purple-300", emoji: "🔍" },
 };
 
+const GRID_STYLE = {
+  backgroundImage:
+    "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+  backgroundSize: "48px 48px",
+};
+
 function ConditionBadge({ value }: { value: string }) {
   const cls = CONDITION_COLORS[value] ?? "bg-gray-100 text-gray-700";
   return <span className={`rounded-full px-3 py-1 text-xs font-bold ${cls}`}>{value || "—"}</span>;
@@ -76,12 +82,12 @@ function DatabaseContent() {
     setResolving(true);
     try {
       const newFlags = (editedSelected.flags || []).filter(f => f !== "review");
-      
+
       const res = await fetch("/api/submissions/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: editedSelected.id, 
+        body: JSON.stringify({
+          id: editedSelected.id,
           flags: newFlags,
           poleCondition: editedSelected.poleCondition,
           padCondition: editedSelected.padCondition,
@@ -91,7 +97,7 @@ function DatabaseContent() {
         })
       });
       if (!res.ok) throw new Error("Failed to update submission");
-      
+
       const updatedSubmission = { ...editedSelected, flags: newFlags };
       setSubmissions(prev => prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s));
       setSelected(updatedSubmission);
@@ -111,7 +117,7 @@ function DatabaseContent() {
         if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
         return data;
       })
-      .then((data) => { 
+      .then((data) => {
         if (data) {
           const list = data.submissions ?? [];
           setSubmissions(list);
@@ -128,7 +134,6 @@ function DatabaseContent() {
       .finally(() => setLoading(false));
   }, [router, preselectId]);
 
-  // Unique users for dropdown
   const uniqueUsers = useMemo(() => {
     const users = [...new Set(submissions.map((s) => s.submittedBy))].sort();
     return users;
@@ -153,24 +158,35 @@ function DatabaseContent() {
   const hasActiveSearch = searchTag.trim() || searchUser;
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
-      <div className="rounded-3xl bg-white p-10 shadow-lg">
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Dark Header Section ── */}
+      <div className="relative overflow-hidden bg-blue-950">
+        <div className="absolute inset-0 opacity-[0.04]" style={GRID_STYLE} />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
 
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-blue-950">Submission Database</h1>
-            <p className="mt-1 text-blue-900/70">All confirmed inspection reports, newest first.</p>
+        <div className="relative mx-auto max-w-7xl px-6 pb-10 pt-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-700/50 bg-blue-900/60 px-3 py-1 text-xs font-medium text-blue-200 backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                Inspection Records
+              </div>
+              <h1 className="text-4xl font-extrabold tracking-tight text-white">Submission Database</h1>
+              <p className="mt-1.5 text-blue-200/80">All confirmed inspection reports, newest first.</p>
+            </div>
+            <span className="rounded-full border border-blue-700/40 bg-blue-900/50 px-5 py-2 text-sm font-bold text-blue-200">
+              {filtered.length} / {submissions.length} record{submissions.length !== 1 ? "s" : ""}
+            </span>
           </div>
-          <span className="rounded-2xl bg-blue-50 px-5 py-2 text-sm font-bold text-blue-900 ring-1 ring-blue-100">
-            {filtered.length} / {submissions.length} record{submissions.length !== 1 ? "s" : ""}
-          </span>
         </div>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="mx-auto max-w-7xl px-6 py-8">
 
         {/* Search Bar */}
-        <div className="mt-6 flex flex-wrap gap-3">
-          {/* Tag search */}
-          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 flex-1 min-w-[180px]">
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 flex-1 min-w-[180px] shadow-sm">
             <span className="text-blue-400 text-sm">🔍</span>
             <input
               type="text"
@@ -184,8 +200,7 @@ function DatabaseContent() {
             )}
           </div>
 
-          {/* User filter */}
-          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 min-w-[180px] cursor-pointer">
+          <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 min-w-[180px] shadow-sm cursor-pointer">
             <span className="text-blue-400 text-sm">👤</span>
             <select
               value={searchUser}
@@ -199,11 +214,10 @@ function DatabaseContent() {
             </select>
           </div>
 
-          {/* Clear all */}
           {hasActiveSearch && (
             <button
               onClick={() => { setSearchTag(""); setSearchUser(""); }}
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer shadow-sm"
             >
               Clear search
             </button>
@@ -215,7 +229,7 @@ function DatabaseContent() {
           {(["all", "vegetation", "review", "processing"] as const).map((f) => (
             <button key={f} onClick={() => setFilterFlag(f)}
               className={`rounded-full px-4 py-1.5 text-xs font-bold ring-1 transition-all cursor-pointer ${
-                filterFlag === f ? "bg-blue-600 text-white ring-blue-600" : "bg-blue-50 text-blue-800 ring-blue-200 hover:bg-blue-100"
+                filterFlag === f ? "bg-blue-900 text-white ring-blue-900" : "bg-white text-blue-800 ring-blue-200 hover:bg-blue-50 shadow-sm"
               }`}>
               {f === "all" ? "All flags" : `${FLAG_META[f].emoji} ${FLAG_META[f].label}`}
             </button>
@@ -249,7 +263,7 @@ function DatabaseContent() {
         )}
 
         {!loading && filtered.length > 0 && (
-          <div className="mt-8 overflow-x-auto rounded-2xl ring-1 ring-blue-100">
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-blue-100 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="bg-blue-50 text-xs font-bold uppercase tracking-wider text-blue-700">
                 <tr>
@@ -263,9 +277,9 @@ function DatabaseContent() {
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-200">
+              <tbody className="divide-y divide-blue-100">
                 {filtered.map((s) => (
-                  <tr key={s.id} className="cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
+                  <tr key={s.id} className="cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => { setSelected(s); setEditedSelected(s); setIsEditing(false); }}>
                     <td className="px-5 py-3 text-blue-900/70 whitespace-nowrap">{formatDate(s.createdAt)}</td>
                     <td className="px-5 py-3 font-bold text-blue-950">{s.tagNumber || "—"}</td>
                     <td className="px-5 py-3 text-blue-900/80">{s.submittedBy}</td>
@@ -316,7 +330,7 @@ function DatabaseContent() {
                   <select
                     value={editedSelected?.poleCondition}
                     onChange={(e) => setEditedSelected(prev => prev ? { ...prev, poleCondition: e.target.value } : prev)}
-                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
                   >
                     {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -329,7 +343,7 @@ function DatabaseContent() {
                   <select
                     value={editedSelected?.padCondition}
                     onChange={(e) => setEditedSelected(prev => prev ? { ...prev, padCondition: e.target.value } : prev)}
-                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
                   >
                     {["Excellent", "Good", "Fair", "Poor", "Critical"].map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -342,7 +356,7 @@ function DatabaseContent() {
                   <select
                     value={editedSelected?.vegetationEncroachment ? "Yes" : "No"}
                     onChange={(e) => setEditedSelected(prev => prev ? { ...prev, vegetationEncroachment: e.target.value === "Yes" } : prev)}
-                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full rounded-md border border-blue-200 bg-white text-sm text-blue-950 p-1.5 outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
                   >
                     <option>Yes</option>
                     <option>No</option>
@@ -372,7 +386,7 @@ function DatabaseContent() {
                 )
               )}
             </div>
-            
+
             <div className="mt-4">
               <p className="text-xs font-bold uppercase tracking-wider text-blue-500">Base Notes</p>
               {isEditing ? (
@@ -414,22 +428,22 @@ function DatabaseContent() {
               {selected.flags?.includes("review") && (
                 <>
                   {!isEditing ? (
-                    <button 
+                    <button
                       onClick={() => setIsEditing(true)}
                       className="flex-1 rounded-xl bg-blue-100 py-3 text-sm font-bold text-blue-900 ring-1 ring-blue-300 hover:bg-blue-200 cursor-pointer"
                     >
                       Edit Data
                     </button>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => setIsEditing(false)}
                       className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200 cursor-pointer"
                     >
                       Cancel Edit
                     </button>
                   )}
-                  <button 
-                    onClick={resolveReviewFlag} 
+                  <button
+                    onClick={resolveReviewFlag}
                     disabled={resolving}
                     className="flex-1 rounded-xl bg-purple-100 py-3 text-sm font-bold text-purple-800 ring-1 ring-purple-300 hover:bg-purple-200 disabled:opacity-50 cursor-pointer"
                   >
@@ -450,7 +464,7 @@ function DatabaseContent() {
           <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white text-xl hover:bg-white/40 cursor-pointer">✕</button>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -465,7 +479,17 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 
 export default function DatabasePage() {
   return (
-    <Suspense fallback={<div className="p-10 text-center text-blue-900 font-bold">Loading database...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <div className="relative overflow-hidden bg-blue-950">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400" />
+          <div className="relative mx-auto max-w-7xl px-6 pb-10 pt-8">
+            <h1 className="text-4xl font-extrabold tracking-tight text-white">Submission Database</h1>
+          </div>
+        </div>
+        <div className="p-10 text-center text-blue-900 font-bold">Loading database...</div>
+      </div>
+    }>
       <DatabaseContent />
     </Suspense>
   );
