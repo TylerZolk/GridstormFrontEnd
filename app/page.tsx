@@ -1,22 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { listSubmissions } from "@/lib/submissions";
-
-export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const user = await getSessionUser();
   if (user) {
     redirect("/portal");
-  }
-
-  let recordCount: number | null = null;
-  try {
-    const submissions = await listSubmissions();
-    recordCount = submissions.length;
-  } catch {
-    // DB unavailable — fall back to no count
   }
 
   return (
@@ -97,7 +86,7 @@ export default async function Home() {
                       Submission Database
                     </span>
                     <span className="rounded-full bg-blue-800/60 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 ring-1 ring-blue-700/40">
-                      {recordCount !== null ? `${recordCount} record${recordCount !== 1 ? "s" : ""}` : "—"}
+                      records
                     </span>
                   </div>
 
@@ -111,18 +100,18 @@ export default async function Home() {
                     </div>
                     {(
                       [
-                        { tag: "POLE-2347", pole: "Good",      pad: "Good", flags: [] as string[]             },
-                        { tag: "POLE-1892", pole: "Fair",      pad: "Poor", flags: ["review"] as string[]     },
+                        { tag: "POLE-2347", pole: "Good", pad: "Good", flags: [] as string[] },
+                        { tag: "POLE-1892", pole: "Fair", pad: "Poor", flags: ["review"] as string[] },
                         { tag: "POLE-2301", pole: "Excellent", pad: "Good", flags: ["vegetation"] as string[] },
-                        { tag: "POLE-2088", pole: "Critical",  pad: "Fair", flags: ["review"] as string[]     },
+                        { tag: "POLE-2088", pole: "Critical", pad: "Fair", flags: ["review"] as string[] },
                       ]
                     ).map((row, i) => {
                       const condColor: Record<string, string> = {
                         Excellent: "bg-green-500/20 text-green-400",
-                        Good:      "bg-blue-500/20 text-blue-300",
-                        Fair:      "bg-yellow-500/20 text-yellow-400",
-                        Poor:      "bg-orange-500/20 text-orange-400",
-                        Critical:  "bg-red-500/20 text-red-400",
+                        Good: "bg-blue-500/20 text-blue-300",
+                        Fair: "bg-yellow-500/20 text-yellow-400",
+                        Poor: "bg-orange-500/20 text-orange-400",
+                        Critical: "bg-red-500/20 text-red-400",
                       };
                       return (
                         <div
@@ -167,9 +156,9 @@ export default async function Home() {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       {(
                         [
-                          { label: "Pole",       value: "Good", cls: "text-blue-300" },
-                          { label: "Pad",        value: "Good", cls: "text-blue-300" },
-                          { label: "Vegetation", value: "No",   cls: "text-blue-400" },
+                          { label: "Pole", value: "Good", cls: "text-blue-300" },
+                          { label: "Pad", value: "Good", cls: "text-blue-300" },
+                          { label: "Vegetation", value: "No", cls: "text-blue-400" },
                         ]
                       ).map((d) => (
                         <div key={d.label} className="rounded-lg bg-blue-900/50 px-1 py-1.5">
